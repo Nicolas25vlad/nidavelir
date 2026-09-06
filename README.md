@@ -11,6 +11,7 @@
     <img alt="Last commit" src="https://img.shields.io/github/last-commit/Nicolas25vlad/nidavelir?style=flat&logo=git" />
     <img alt="Project status" src="https://img.shields.io/badge/status-pre--alpha-d29922" />
     <img alt="MCP" src="https://img.shields.io/badge/control_plane-MCP-8b949e" />
+    <img alt="License" src="https://img.shields.io/github/license/Nicolas25vlad/nidavelir" />
   </p>
 
   <p>
@@ -395,7 +396,7 @@ Architecture discussions and narrowly scoped issues are welcome once the first e
 
 ## License
 
-A license has not been selected yet.
+Nidavelir is released under the [MIT License](LICENSE).
 
 ---
 
