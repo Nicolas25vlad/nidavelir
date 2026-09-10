@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    name: Core
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: core/pyproject.toml
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -e '.[dev]'
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest -q
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+
+  worker:
+    name: Worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate entrypoint syntax
+        run: bash -n worker/entrypoint.sh
+
+      - name: Build worker image
+        run: docker build -t nidavelir-worker:ci worker/
+
+      - name: Verify non-root runtime
+        run: |
+          uid="$(docker run --rm --entrypoint id nidavelir-worker:ci -u)"
+          test "$uid" = "10001"
+
+      - name: Smoke test Codex CLI
+        run: docker run --rm nidavelir-worker:ci codex --version
+
+  compose:
+    name: Compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate compose file
+        run: docker compose config --quiet
+
+  required:
+    name: CI / required
+    if: always()
+    needs: [core, web, worker, compose]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require all CI jobs
+        env:
+          CORE_RESULT: ${{ needs.core.result }}
+          WEB_RESULT: ${{ needs.web.result }}
+          WORKER_RESULT: ${{ needs.worker.result }}
+          COMPOSE_RESULT: ${{ needs.compose.result }}
+        run: |
+          printf 'Core: %s\nWeb: %s\nWorker: %s\nCompose: %s\n' \
+            "$CORE_RESULT" "$WEB_RESULT" "$WORKER_RESULT" "$COMPOSE_RESULT"
+
+          test "$CORE_RESULT" = "success"
+          test "$WEB_RESULT" = "success"
+          test "$WORKER_RESULT" = "success"
+          test "$COMPOSE_RESULT" = "success"
