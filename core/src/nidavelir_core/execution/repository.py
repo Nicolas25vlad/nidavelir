@@ -22,6 +22,18 @@ class AttemptRepository:
         )
         return int(number or 0) + 1
 
+    def count_active(self) -> int:
+        active = self.session.scalar(
+            select(func.count())
+            .select_from(AttemptRecord)
+            .where(
+                AttemptRecord.status.in_(
+                    [AttemptStatus.PREPARING, AttemptStatus.RUNNING]
+                )
+            )
+        )
+        return int(active or 0)
+
     def create(
         self,
         *,
@@ -79,6 +91,13 @@ class AttemptRepository:
     def set_harness_version(self, attempt_id: UUID, harness_version: str) -> None:
         attempt = self.get(attempt_id)
         attempt.harness_version = harness_version
+        self.session.commit()
+
+    def set_result(self, attempt_id: UUID, result: dict) -> None:
+        attempt = self.get(attempt_id)
+        attempt.result = result
+        commit = result.get("commit")
+        attempt.commit_sha = str(commit) if commit else None
         self.session.commit()
 
     def append_logs(self, attempt_id: UUID, text: str) -> None:
