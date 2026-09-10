@@ -34,6 +34,18 @@ class AttemptRepository:
         )
         return int(active or 0)
 
+    def list_active(self) -> list[AttemptRecord]:
+        statement = (
+            select(AttemptRecord)
+            .where(
+                AttemptRecord.status.in_(
+                    [AttemptStatus.PREPARING, AttemptStatus.RUNNING]
+                )
+            )
+            .order_by(AttemptRecord.created_at.asc())
+        )
+        return list(self.session.scalars(statement).all())
+
     def create(
         self,
         *,
