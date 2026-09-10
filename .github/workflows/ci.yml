@@ -45,6 +45,36 @@ jobs:
       - name: Build Core image
         run: docker build -t nidavelir-core:ci .
 
+  mcp:
+    name: MCP
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: mcp/pyproject.toml
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -e '.[dev]'
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest -q
+
+      - name: Build MCP image
+        run: docker build -t nidavelir-mcp:ci .
+
   web:
     name: Web
     runs-on: ubuntu-latest
@@ -109,21 +139,23 @@ jobs:
   required:
     name: CI / required
     if: always()
-    needs: [core, web, worker, compose]
+    needs: [core, mcp, web, worker, compose]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
       - name: Require all CI jobs
         env:
           CORE_RESULT: ${{ needs.core.result }}
+          MCP_RESULT: ${{ needs.mcp.result }}
           WEB_RESULT: ${{ needs.web.result }}
           WORKER_RESULT: ${{ needs.worker.result }}
           COMPOSE_RESULT: ${{ needs.compose.result }}
         run: |
-          printf 'Core: %s\nWeb: %s\nWorker: %s\nCompose: %s\n' \
-            "$CORE_RESULT" "$WEB_RESULT" "$WORKER_RESULT" "$COMPOSE_RESULT"
+          printf 'Core: %s\nMCP: %s\nWeb: %s\nWorker: %s\nCompose: %s\n' \
+            "$CORE_RESULT" "$MCP_RESULT" "$WEB_RESULT" "$WORKER_RESULT" "$COMPOSE_RESULT"
 
           test "$CORE_RESULT" = "success"
+          test "$MCP_RESULT" = "success"
           test "$WEB_RESULT" = "success"
           test "$WORKER_RESULT" = "success"
           test "$COMPOSE_RESULT" = "success"
