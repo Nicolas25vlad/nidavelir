@@ -31,7 +31,7 @@ repo_has -name 'package.json' -o -name '*.tsx' -o -name '*.jsx' && score_fronten
 [[ "$text" =~ backend|api|endpoint|fastapi|server|service|spring ]] && score_backend=$((score_backend + 3))
 repo_has -name 'pyproject.toml' -o -name 'pom.xml' -o -name 'build.gradle' -o -name 'build.gradle.kts' && score_backend=$((score_backend + 1))
 
-[[ "$text" =~ docker|compose|kubernetes|k8s|infra|devops|pipeline|ci/cd|github[[:space:]]actions ]] && score_infra=$((score_infra + 4))
+[[ "$text" =~ docker|docker[[:space:]]compose|kubernetes|k8s|infra|devops|pipeline|ci/cd|github[[:space:]]actions ]] && score_infra=$((score_infra + 4))
 repo_has -name 'Dockerfile' -o -name 'compose.yaml' -o -name 'compose.yml' -o -name '*.tf' && score_infra=$((score_infra + 2))
 
 [[ "$text" =~ test|testing|qa|pytest|vitest|playwright|e2e ]] && score_testing=$((score_testing + 4))
