@@ -56,7 +56,8 @@ if [[ ! -f "$INSTALL_DIR/.env" ]]; then
   mcp_auth_token="$(random_hex)"
   cat > "$INSTALL_DIR/.env" <<EOF
 NIDAVELIR_VERSION=$VERSION
-NIDAVELIR_BIND_ADDRESS=0.0.0.0
+NIDAVELIR_WEB_BIND_ADDRESS=127.0.0.1
+NIDAVELIR_MCP_BIND_ADDRESS=127.0.0.1
 NIDAVELIR_POSTGRES_PASSWORD=$postgres_password
 NIDAVELIR_DATABASE_URL=postgresql+psycopg://nidavelir:$postgres_password@postgres:5432/nidavelir
 NIDAVELIR_LOG_LEVEL=INFO
@@ -100,8 +101,8 @@ if [[ -n "$OPERATOR_USER" && "$OPERATOR_USER" != "root" ]]; then
   printf 'Open a new login session before using the new group membership.\n'
 fi
 printf '1. Edit configuration: nano %s/.env\n' "$INSTALL_DIR"
-printf '2. For remote MCP, set NIDAVELIR_MCP_RESOURCE_URL/ISSUER_URL to the HTTPS public origin.\n'
+printf '2. For remote MCP, set its bind/resource/issuer values to your HTTPS deployment.\n'
 printf '3. Ensure your operator account can access Docker (Docker group or rootless Docker).\n'
 printf '4. Check config: nidavelir doctor\n'
 printf '5. Start/update: nidavelir update %s\n' "$VERSION"
-printf '\nWeb: http://<server>:8080\nMCP: http://<server>:8001/mcp (Bearer auth required)\nCore: http://<server>:8000\n'
+printf '\nWeb: http://127.0.0.1:8080 by default\nMCP: http://127.0.0.1:8001/mcp by default (Bearer auth required)\nCore: internal Docker network only\n'
