@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -18,6 +19,15 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:5173",
     ]
+
+    worker_image: str = "nidavelir-worker:dev"
+    worker_cpus: float = 1.0
+    worker_memory: str = "2g"
+    worker_timeout_seconds: int = 1800
+    worker_stop_timeout_seconds: int = 10
+
+    github_token: SecretStr | None = None
+    openai_api_key: SecretStr | None = None
 
 
 @lru_cache
