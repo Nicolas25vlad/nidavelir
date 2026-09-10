@@ -1,8 +1,19 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
 
 import { AsyncState } from "./components/AsyncState";
-import { ApiError, api, type Attempt, type AttemptLogs, type Task, type TaskState } from "./lib/api";
+import {
+  ApiError,
+  api,
+  type Attempt,
+  type AttemptDiff,
+  type AttemptLogs,
+  type Harness,
+  type ReviewDecision,
+  type Task,
+  type TaskState,
+  type ValidationCheck,
+} from "./lib/api";
 
 const navigation = [
   { to: "/", label: "Overview", end: true },
@@ -15,6 +26,7 @@ const boardStates: TaskState[] = [
   "QUEUED",
   "RUNNING",
   "AGENT_DONE",
+  "VALIDATING",
   "NEEDS_CHANGES",
   "APPROVED",
 ];
@@ -58,7 +70,6 @@ function useTasks(pollMs = 5000) {
 
   useEffect(() => {
     let active = true;
-
     const load = async () => {
       try {
         const data = await api.listTasks();
@@ -83,54 +94,6 @@ function useTasks(pollMs = 5000) {
   return { tasks, loading, error, refresh: () => setRevision((value) => value + 1) };
 }
 
-function Overview() {
-  const { tasks, loading, error } = useTasks();
-  const active = tasks.filter((task) => ["QUEUED", "RUNNING", "VALIDATING"].includes(task.state));
-  const attention = tasks.filter((task) => ["NEEDS_CHANGES", "AGENT_DONE"].includes(task.state));
-  const completed = tasks.filter((task) => task.state === "CLOSED");
-
-  if (loading) return <AsyncState kind="loading" title="Loading control plane" detail="Reading durable task state from Core." />;
-  if (error) return <AsyncState kind="error" title="Core unavailable" detail={error} />;
-
-  return (
-    <section>
-      <PageHeader
-        eyebrow="System briefing"
-        title="Overview"
-        description="Live operational state from the durable control plane, without decorative dashboard noise."
-      />
-      <div className="metric-row">
-        <div><span>Active</span><strong>{active.length}</strong></div>
-        <div><span>Needs decision</span><strong>{attention.length}</strong></div>
-        <div><span>Closed</span><strong>{completed.length}</strong></div>
-        <div><span>Total</span><strong>{tasks.length}</strong></div>
-      </div>
-
-      <div className="section-block">
-        <div className="section-heading"><h2>Needs attention</h2><Link to="/board">Open board</Link></div>
-        {attention.length === 0 ? (
-          <AsyncState kind="empty" title="Nothing waiting on you" detail="Agent-complete and failed tasks will surface here." />
-        ) : (
-          <div className="task-list">
-            {attention.map((task) => <TaskRow key={task.id} task={task} />)}
-          </div>
-        )}
-      </div>
-
-      <div className="section-block">
-        <div className="section-heading"><h2>Recent tasks</h2></div>
-        {tasks.length === 0 ? (
-          <AsyncState kind="empty" title="No tasks yet" detail="Create the first durable task from the Board." />
-        ) : (
-          <div className="task-list">
-            {tasks.slice(0, 6).map((task) => <TaskRow key={task.id} task={task} />)}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function TaskRow({ task }: { task: Task }) {
   return (
     <Link className="task-row" to={`/tasks/${task.id}`}>
@@ -143,6 +106,44 @@ function TaskRow({ task }: { task: Task }) {
         <span>{formatTime(task.updated_at)}</span>
       </div>
     </Link>
+  );
+}
+
+function Overview() {
+  const { tasks, loading, error } = useTasks();
+  const active = tasks.filter((task) => ["QUEUED", "RUNNING", "VALIDATING"].includes(task.state));
+  const attention = tasks.filter((task) => ["VALIDATING", "NEEDS_CHANGES", "APPROVED"].includes(task.state));
+  const completed = tasks.filter((task) => task.state === "CLOSED");
+
+  if (loading) return <AsyncState kind="loading" title="Loading control plane" detail="Reading durable task state from Core." />;
+  if (error) return <AsyncState kind="error" title="Core unavailable" detail={error} />;
+
+  return (
+    <section>
+      <PageHeader eyebrow="System briefing" title="Overview" description="Live durable task and worker state." />
+      <div className="metric-row">
+        <div><span>Active</span><strong>{active.length}</strong></div>
+        <div><span>Needs decision</span><strong>{attention.length}</strong></div>
+        <div><span>Closed</span><strong>{completed.length}</strong></div>
+        <div><span>Total</span><strong>{tasks.length}</strong></div>
+      </div>
+      <div className="section-block">
+        <div className="section-heading"><h2>Needs attention</h2><Link to="/board">Open board</Link></div>
+        {attention.length === 0 ? (
+          <AsyncState kind="empty" title="Nothing waiting on you" detail="Validated, rejected and approved tasks surface here." />
+        ) : (
+          <div className="task-list">{attention.map((task) => <TaskRow key={task.id} task={task} />)}</div>
+        )}
+      </div>
+      <div className="section-block">
+        <div className="section-heading"><h2>Recent tasks</h2></div>
+        {tasks.length === 0 ? (
+          <AsyncState kind="empty" title="No tasks yet" detail="Create the first durable task from the Board." />
+        ) : (
+          <div className="task-list">{tasks.slice(0, 6).map((task) => <TaskRow key={task.id} task={task} />)}</div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -191,17 +192,12 @@ function CreateTaskForm({ onCreated }: { onCreated: () => void }) {
 
 function Board() {
   const { tasks, loading, error, refresh } = useTasks();
-
   if (loading) return <AsyncState kind="loading" title="Loading board" detail="Reading persisted task states." />;
   if (error) return <AsyncState kind="error" title="Board unavailable" detail={error} />;
 
   return (
     <section>
-      <PageHeader
-        eyebrow="Durable state"
-        title="Board"
-        description="Every column maps to persisted Core state. Refreshes automatically while workers move tasks."
-      />
+      <PageHeader eyebrow="Durable state" title="Board" description="Every column maps directly to persisted Core state." />
       <CreateTaskForm onCreated={refresh} />
       <div className="kanban" aria-label="Task board">
         {boardStates.map((state) => {
@@ -212,9 +208,7 @@ function Board() {
               <div className="kanban-column__body">
                 {columnTasks.map((task) => (
                   <Link className="task-card" to={`/tasks/${task.id}`} key={task.id}>
-                    <strong>{task.title}</strong>
-                    <span>{task.repository}</span>
-                    <small>{formatTime(task.updated_at)}</small>
+                    <strong>{task.title}</strong><span>{task.repository}</span><small>{formatTime(task.updated_at)}</small>
                   </Link>
                 ))}
                 {columnTasks.length === 0 && <span className="column-empty">Empty</span>}
@@ -227,9 +221,7 @@ function Board() {
   );
 }
 
-interface AgentRow extends Attempt {
-  taskTitle: string;
-}
+interface AgentRow extends Attempt { taskTitle: string }
 
 function Agents() {
   const [attempts, setAttempts] = useState<AgentRow[]>([]);
@@ -241,12 +233,10 @@ function Agents() {
     const load = async () => {
       try {
         const tasks = await api.listTasks();
-        const byTask = await Promise.all(
-          tasks.map(async (task) => {
-            const taskAttempts = await api.listAttempts(task.id);
-            return taskAttempts.map((attempt) => ({ ...attempt, taskTitle: task.title }));
-          }),
-        );
+        const byTask = await Promise.all(tasks.map(async (task) => {
+          const taskAttempts = await api.listAttempts(task.id);
+          return taskAttempts.map((attempt) => ({ ...attempt, taskTitle: task.title }));
+        }));
         if (!active) return;
         setAttempts(byTask.flat().sort((a, b) => b.created_at.localeCompare(a.created_at)));
         setError(null);
@@ -256,13 +246,9 @@ function Agents() {
         if (active) setLoading(false);
       }
     };
-
     void load();
     const timer = window.setInterval(() => void load(), 5000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
+    return () => { active = false; window.clearInterval(timer); };
   }, []);
 
   if (loading) return <AsyncState kind="loading" title="Loading attempts" detail="Reading execution history." />;
@@ -270,13 +256,9 @@ function Agents() {
 
   return (
     <section>
-      <PageHeader
-        eyebrow="Execution"
-        title="Agents"
-        description="Disposable runtime attempts remain inspectable after their containers are gone."
-      />
+      <PageHeader eyebrow="Execution" title="Agents" description="Disposable runtime attempts remain inspectable after cleanup." />
       {attempts.length === 0 ? (
-        <AsyncState kind="empty" title="No worker attempts" detail="Start a task from Task Detail to create the first attempt." />
+        <AsyncState kind="empty" title="No worker attempts" detail="Start a task from Task Detail." />
       ) : (
         <div className="attempt-table">
           {attempts.map((attempt) => (
@@ -296,6 +278,12 @@ function TaskDetail() {
   const [task, setTask] = useState<Task | null>(null);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [logs, setLogs] = useState<AttemptLogs | null>(null);
+  const [diff, setDiff] = useState<AttemptDiff | null>(null);
+  const [checks, setChecks] = useState<ValidationCheck[]>([]);
+  const [reviews, setReviews] = useState<ReviewDecision[]>([]);
+  const [harnesses, setHarnesses] = useState<Harness[]>([]);
+  const [selectedHarness, setSelectedHarness] = useState("codex");
+  const [feedback, setFeedback] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -303,19 +291,30 @@ function TaskDetail() {
   useEffect(() => {
     if (!taskId) return;
     let active = true;
-
     const load = async () => {
       try {
-        const [nextTask, nextAttempts] = await Promise.all([
+        const [nextTask, nextAttempts, nextHarnesses, nextReviews] = await Promise.all([
           api.getTask(taskId),
           api.listAttempts(taskId),
+          api.listHarnesses(),
+          api.getReviews(taskId),
         ]);
         const latest = nextAttempts[0];
-        const nextLogs = latest ? await api.getAttemptLogs(latest.id) : null;
+        const [nextLogs, nextDiff, nextChecks] = latest
+          ? await Promise.all([
+              api.getAttemptLogs(latest.id),
+              api.getAttemptDiff(latest.id),
+              api.getAttemptChecks(latest.id),
+            ])
+          : [null, null, [] as ValidationCheck[]];
         if (!active) return;
         setTask(nextTask);
         setAttempts(nextAttempts);
+        setHarnesses(nextHarnesses);
+        setReviews(nextReviews);
         setLogs(nextLogs);
+        setDiff(nextDiff);
+        setChecks(nextChecks);
         setError(null);
       } catch (caught) {
         if (active) setError(errorText(caught));
@@ -323,38 +322,23 @@ function TaskDetail() {
         if (active) setLoading(false);
       }
     };
-
     void load();
     const timer = window.setInterval(() => void load(), 2000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
+    return () => { active = false; window.clearInterval(timer); };
   }, [taskId]);
 
   const latest = attempts[0];
-  const canStart = task ? ["BACKLOG", "QUEUED", "NEEDS_CHANGES"].includes(task.state) : false;
-  const canCancel = task ? !["CLOSED", "CANCELLED", "MERGED"].includes(task.state) : false;
+  const selected = harnesses.find((harness) => harness.id === selectedHarness);
+  const canStart = Boolean(task && ["BACKLOG", "QUEUED", "NEEDS_CHANGES"].includes(task.state));
+  const canReview = task?.state === "VALIDATING";
+  const canMerge = task?.state === "APPROVED";
+  const canCancel = Boolean(task && !["CLOSED", "CANCELLED", "MERGED"].includes(task.state));
 
-  const start = async () => {
-    if (!taskId) return;
+  const runAction = async (action: () => Promise<unknown>) => {
     setActionBusy(true);
     setError(null);
     try {
-      await api.startTask(taskId);
-    } catch (caught) {
-      setError(errorText(caught));
-    } finally {
-      setActionBusy(false);
-    }
-  };
-
-  const cancel = async () => {
-    if (!taskId) return;
-    setActionBusy(true);
-    setError(null);
-    try {
-      await api.cancelTask(taskId);
+      await action();
     } catch (caught) {
       setError(errorText(caught));
     } finally {
@@ -363,23 +347,27 @@ function TaskDetail() {
   };
 
   if (loading) return <AsyncState kind="loading" title="Loading task" detail="Reading durable task and attempts." />;
-  if (!task) return <AsyncState kind="error" title="Task unavailable" detail={error ?? "Task not found."} />;
+  if (!task || !taskId) return <AsyncState kind="error" title="Task unavailable" detail={error ?? "Task not found."} />;
 
   return (
     <section>
-      <PageHeader
-        eyebrow={`Task ${task.id.slice(0, 8)}`}
-        title={task.title}
-        description={`${task.repository} · base ${task.base_branch}`}
-      />
+      <PageHeader eyebrow={`Task ${task.id.slice(0, 8)}`} title={task.title} description={`${task.repository} · base ${task.base_branch}`} />
       {error && <AsyncState kind="error" title="Action failed" detail={error} />}
+
       <div className="task-toolbar">
         <StateBadge state={task.state} />
         <div>
-          <button className="button" disabled={!canStart || actionBusy} onClick={() => void start()}>Start Codex</button>
-          <button className="button button--secondary" disabled={!canCancel || actionBusy} onClick={() => void cancel()}>Cancel</button>
+          <select value={selectedHarness} onChange={(event) => setSelectedHarness(event.target.value)} disabled={!canStart || actionBusy}>
+            {harnesses.map((harness) => <option value={harness.id} key={harness.id}>{harness.display_name}{harness.configured ? "" : " (not configured)"}</option>)}
+          </select>
+          <button className="button" disabled={!canStart || !selected?.configured || actionBusy} onClick={() => void runAction(() => api.startTask(taskId, selectedHarness))}>Start {selectedHarness}</button>
+          <button className="button button--secondary" disabled={!canCancel || actionBusy} onClick={() => void runAction(() => api.cancelTask(taskId))}>Cancel</button>
         </div>
       </div>
+
+      {selected && !selected.configured && canStart && (
+        <AsyncState kind="error" title={`${selected.display_name} is not configured`} detail={`Set ${selected.credential_env} on the server before starting this harness.`} />
+      )}
 
       <div className="detail-grid">
         <article className="detail-panel">
@@ -387,6 +375,8 @@ function TaskDetail() {
           <p>{task.description || "No description."}</p>
           <h3>Acceptance criteria</h3>
           {task.acceptance_criteria.length === 0 ? <span className="muted">None defined.</span> : <ul>{task.acceptance_criteria.map((criterion) => <li key={criterion}>{criterion}</li>)}</ul>}
+          <h3>Validation commands</h3>
+          {task.validation_commands.length === 0 ? <span className="muted">No deterministic checks configured.</span> : <ul>{task.validation_commands.map((command) => <li key={`${command.type}:${command.name}`}><strong>{command.type}</strong> · {command.command}</li>)}</ul>}
         </article>
 
         <article className="detail-panel">
@@ -404,6 +394,44 @@ function TaskDetail() {
         </article>
       </div>
 
+      <article className="detail-panel section-block">
+        <div className="section-heading"><h2>Validation</h2><span>{checks.length} checks</span></div>
+        {checks.length === 0 ? <span className="muted">No persisted validation results.</span> : (
+          <div className="timeline">{checks.map((check) => (
+            <div key={check.id}>
+              <span>{check.check_type}</span><strong>{check.name} · {check.status}</strong><small>{check.command}{check.exit_code === null ? "" : ` · exit ${check.exit_code}`}</small>
+            </div>
+          ))}</div>
+        )}
+      </article>
+
+      <article className="log-panel">
+        <div className="section-heading"><h2>Diff</h2><span>{diff?.commit_sha?.slice(0, 8) ?? "—"}</span></div>
+        <pre>{diff?.stat ? `${diff.stat}\n\n${diff.patch}` : "No persisted diff yet."}</pre>
+      </article>
+
+      <article className="detail-panel section-block">
+        <div className="section-heading"><h2>Review</h2><span>{reviews.length} decisions</span></div>
+        {canReview && (
+          <div className="task-form">
+            <label>Review feedback<textarea rows={3} value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Required for rejection, optional for approval" /></label>
+            <div>
+              <button className="button" disabled={actionBusy} onClick={() => void runAction(() => api.approveTask(taskId, feedback))}>Approve</button>
+              <button className="button button--secondary" disabled={actionBusy || !feedback.trim()} onClick={() => void runAction(async () => { await api.rejectTask(taskId, feedback); setFeedback(""); })}>Reject + retry</button>
+            </div>
+          </div>
+        )}
+        {canMerge && <button className="button" disabled={actionBusy} onClick={() => void runAction(() => api.mergeTask(taskId))}>Merge reviewed commit</button>}
+        {task.merge_commit_sha && <p>Merge commit: <code>{task.merge_commit_sha}</code></p>}
+        {reviews.length === 0 ? <span className="muted">No review decisions yet.</span> : (
+          <div className="timeline">{reviews.map((review) => (
+            <div key={review.id}>
+              <span>{formatTime(review.created_at)}</span><strong>{review.decision} by {review.actor}</strong><small>{review.feedback || "No feedback"}</small>
+            </div>
+          ))}</div>
+        )}
+      </article>
+
       <article className="log-panel">
         <div className="section-heading"><h2>Worker logs</h2><span>{logs?.status ?? "IDLE"}</span></div>
         <pre>{logs?.logs || "No logs yet."}</pre>
@@ -412,15 +440,11 @@ function TaskDetail() {
       <article className="detail-panel section-block">
         <h2>Transition history</h2>
         {task.transitions.length === 0 ? <span className="muted">No transitions yet.</span> : (
-          <div className="timeline">
-            {task.transitions.map((transition) => (
-              <div key={transition.id}>
-                <span>{formatTime(transition.occurred_at)}</span>
-                <strong>{transition.from_state} → {transition.to_state}</strong>
-                <small>{transition.reason ?? "No reason recorded"}</small>
-              </div>
-            ))}
-          </div>
+          <div className="timeline">{task.transitions.map((transition) => (
+            <div key={transition.id}>
+              <span>{formatTime(transition.occurred_at)}</span><strong>{transition.from_state} → {transition.to_state}</strong><small>{transition.reason ?? "No reason recorded"}</small>
+            </div>
+          ))}</div>
         )}
       </article>
     </section>
@@ -440,16 +464,9 @@ export function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand-block">
-          <div className="brand-mark" aria-hidden="true">✦</div>
-          <div><strong>Nidavelir</strong><span>control plane</span></div>
-        </div>
+        <div className="brand-block"><div className="brand-mark" aria-hidden="true">✦</div><div><strong>Nidavelir</strong><span>control plane</span></div></div>
         <nav aria-label="Primary navigation">
-          {navigation.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? "nav-link nav-link--active" : "nav-link")}>
-              {item.label}
-            </NavLink>
-          ))}
+          {navigation.map((item) => <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? "nav-link nav-link--active" : "nav-link")}>{item.label}</NavLink>)}
         </nav>
         <div className="sidebar-status"><span className="status-dot" /><span>pre-alpha</span></div>
       </aside>
