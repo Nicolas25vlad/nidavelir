@@ -18,7 +18,7 @@ Before invoking a harness, `nidavelir-resolve-profile` classifies the task and e
 - `android`
 - `docs`
 
-The resolver uses task text plus lightweight repository signals. A task payload may set `profile` explicitly; otherwise `auto` resolution is used.
+The first cut resolves profiles automatically from task text plus lightweight repository signals. The resolver also understands an explicit `profile` field for forward compatibility; persisted Core/MCP/Web profile overrides and attempt snapshots are tracked separately in #60.
 
 Ponytail is part of the base bundle and is available to every coding profile. Profile-specific skills are linked into both `~/.agents/skills` and `~/.codex/skills`, while the complete skill store remains outside the discovery path.
 
