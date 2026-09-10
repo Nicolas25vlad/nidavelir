@@ -14,23 +14,27 @@ class AttemptRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
 
-    def create(
-        self,
-        *,
-        task_id: UUID,
-        container_name: str,
-        volume_name: str,
-        branch_name: str,
-        harness: str = "codex",
-    ) -> AttemptRecord:
+    def next_number(self, task_id: UUID) -> int:
         number = self.session.scalar(
             select(func.coalesce(func.max(AttemptRecord.number), 0)).where(
                 AttemptRecord.task_id == task_id
             )
         )
+        return int(number or 0) + 1
+
+    def create(
+        self,
+        *,
+        task_id: UUID,
+        number: int,
+        container_name: str,
+        volume_name: str,
+        branch_name: str,
+        harness: str = "codex",
+    ) -> AttemptRecord:
         attempt = AttemptRecord(
             task_id=task_id,
-            number=int(number or 0) + 1,
+            number=number,
             container_name=container_name,
             volume_name=volume_name,
             branch_name=branch_name,
@@ -69,6 +73,11 @@ class AttemptRepository:
         attempt = self.get(attempt_id)
         attempt.status = AttemptStatus.RUNNING
         attempt.started_at = utcnow()
+        attempt.harness_version = harness_version
+        self.session.commit()
+
+    def set_harness_version(self, attempt_id: UUID, harness_version: str) -> None:
+        attempt = self.get(attempt_id)
         attempt.harness_version = harness_version
         self.session.commit()
 
