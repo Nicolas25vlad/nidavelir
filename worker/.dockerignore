@@ -1,4 +1,8 @@
 *
 !Dockerfile
 !entrypoint.sh
+!git-askpass.sh
+!prepare-repo.sh
+!run-task.sh
+!push-repo.sh
 !README.md
