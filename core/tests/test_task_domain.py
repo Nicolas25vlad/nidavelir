@@ -1,3 +1,5 @@
+from itertools import pairwise
+
 import pytest
 
 from nidavelir_core.tasks.domain import (
@@ -20,7 +22,7 @@ def test_happy_path_lifecycle_is_allowed() -> None:
         TaskState.CLOSED,
     ]
 
-    for current, requested in zip(lifecycle, lifecycle[1:], strict=True):
+    for current, requested in pairwise(lifecycle):
         ensure_transition_allowed(current, requested)
 
 
