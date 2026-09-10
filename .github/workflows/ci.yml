@@ -149,6 +149,8 @@ jobs:
 
       - name: Validate production compose
         env:
+          NIDAVELIR_INSTALLATION_ID: ci-installation
+          NIDAVELIR_COMPOSE_PROJECT_NAME: nidavelir-ci
           NIDAVELIR_POSTGRES_PASSWORD: test-password
           NIDAVELIR_DATABASE_URL: postgresql+psycopg://nidavelir:test-password@postgres:5432/nidavelir
           NIDAVELIR_GITHUB_TOKEN: test-token

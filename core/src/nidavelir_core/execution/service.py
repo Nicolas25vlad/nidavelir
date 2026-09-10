@@ -23,6 +23,7 @@ from .validation_runner import run_validation_checks
 logger = logging.getLogger(__name__)
 
 MANAGED_LABEL = "io.nidavelir.managed"
+INSTALLATION_LABEL = "io.nidavelir.installation"
 ATTEMPT_LABEL = "io.nidavelir.attempt_id"
 SUPPORTED_HARNESSES = frozenset({"codex", "cursor"})
 
@@ -46,6 +47,12 @@ class WorkerStageError(RuntimeError):
 def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
     return (slug or "task")[:48].rstrip("-")
+
+
+def _installation_namespace(settings: Settings | None = None) -> str:
+    raw = (settings or get_settings()).installation_id
+    namespace = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
+    return (namespace or "development")[:24].rstrip("-")
 
 
 def task_branch_name(task_id: UUID, title: str) -> str:
@@ -104,19 +111,34 @@ def enqueue_attempt(
 
     number = attempts.next_number(task_id)
     short_id = str(task.id)[:8]
-    runtime_name = f"nidavelir-{short_id}-a{number}"
+    namespace = _installation_namespace(settings)
+    runtime_name = f"nidavelir-{namespace}-{short_id}-a{number}"
     return attempts.create(
         task_id=task.id,
         number=number,
         container_name=runtime_name,
-        volume_name=f"nidavelir-task-{short_id}-a{number}",
+        volume_name=f"nidavelir-{namespace}-task-{short_id}-a{number}",
         branch_name=task_branch_name(task.id, task.title),
         harness=harness,
     )
 
 
 def _labels(attempt_id: UUID) -> dict[str, str]:
-    return {MANAGED_LABEL: "true", ATTEMPT_LABEL: str(attempt_id)}
+    return {
+        MANAGED_LABEL: "true",
+        INSTALLATION_LABEL: _installation_namespace(),
+        ATTEMPT_LABEL: str(attempt_id),
+    }
+
+
+def _scoped_filters(attempt_id: UUID | None = None) -> dict[str, list[str]]:
+    labels = [
+        f"{MANAGED_LABEL}=true",
+        f"{INSTALLATION_LABEL}={_installation_namespace()}",
+    ]
+    if attempt_id is not None:
+        labels.append(f"{ATTEMPT_LABEL}={attempt_id}")
+    return {"label": labels}
 
 
 def _secret_value(value) -> str:
@@ -534,7 +556,7 @@ def cancel_attempt_resources(attempt_id: UUID) -> None:
         client = docker.from_env()
         containers = client.containers.list(
             all=True,
-            filters={"label": f"{ATTEMPT_LABEL}={attempt_id}"},
+            filters=_scoped_filters(attempt_id),
         )
         for container in containers:
             try:
@@ -567,7 +589,7 @@ def _cleanup_attempt_resources(
 ) -> None:
     containers = client.containers.list(
         all=True,
-        filters={"label": f"{ATTEMPT_LABEL}={attempt_id}"},
+        filters=_scoped_filters(attempt_id),
     )
     for container in containers:
         try:
@@ -588,7 +610,7 @@ def cleanup_orphaned_resources() -> None:
         client = docker.from_env()
         containers = client.containers.list(
             all=True,
-            filters={"label": f"{MANAGED_LABEL}=true"},
+            filters=_scoped_filters(),
         )
         for container in containers:
             if container.status != "running":
@@ -597,9 +619,7 @@ def cleanup_orphaned_resources() -> None:
                 except (APIError, NotFound):
                     pass
 
-        for volume in client.volumes.list(
-            filters={"label": f"{MANAGED_LABEL}=true"}
-        ):
+        for volume in client.volumes.list(filters=_scoped_filters()):
             try:
                 volume.remove()
             except APIError:
