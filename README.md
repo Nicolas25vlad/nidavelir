@@ -101,7 +101,7 @@ Current profiles:
 
 **Ponytail is part of the base bundle for every coding task.** Domain skills are additive. The full skill store is baked into the worker image, but only base + resolved-profile skills are placed in the harness discovery paths for a given attempt.
 
-Profile selection is deterministic. An explicit `profile` in the task payload wins; otherwise the worker uses task wording and lightweight repository signals to choose a profile. If frontend and backend signals are both strong, the task resolves to `fullstack`.
+The first profile layer resolves automatically from task wording and lightweight repository signals. If frontend and backend signals are both strong, the task resolves to `fullstack`. Persisted explicit profile overrides and immutable per-attempt profile/skill snapshots are tracked in #60.
 
 Skills are fetched during image build from exact Git commit SHAs declared in [`worker/skills.lock.json`](worker/skills.lock.json). They are not downloaded from a floating `latest` branch at task runtime. Source license texts are retained under `/opt/nidavelir/third-party/licenses` inside the worker image.
 
