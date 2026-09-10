@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nidavelir_core.database import Base
@@ -13,6 +13,9 @@ from .domain import TaskState
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+task_state_type = Enum(TaskState, name="task_state", native_enum=False, length=32)
 
 
 class TaskRecord(Base):
@@ -25,7 +28,7 @@ class TaskRecord(Base):
     base_branch: Mapped[str] = mapped_column(String(200), default="main")
     acceptance_criteria: Mapped[list[str]] = mapped_column(JSON, default=list)
     state: Mapped[TaskState] = mapped_column(
-        String(32), default=TaskState.BACKLOG, nullable=False
+        task_state_type, default=TaskState.BACKLOG, nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
@@ -48,8 +51,8 @@ class TaskTransitionRecord(Base):
     task_id: Mapped[UUID] = mapped_column(
         ForeignKey("tasks.id", ondelete="CASCADE"), index=True
     )
-    from_state: Mapped[TaskState] = mapped_column(String(32), nullable=False)
-    to_state: Mapped[TaskState] = mapped_column(String(32), nullable=False)
+    from_state: Mapped[TaskState] = mapped_column(task_state_type, nullable=False)
+    to_state: Mapped[TaskState] = mapped_column(task_state_type, nullable=False)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     occurred_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
