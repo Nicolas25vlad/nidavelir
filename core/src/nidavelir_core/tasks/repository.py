@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .domain import InvalidTaskTransition, TaskState, ensure_transition_allowed
+from .domain import TaskState, ensure_transition_allowed
 from .models import TaskRecord, TaskTransitionRecord, utcnow
 from .schemas import TaskCreate, TaskUpdate
 
@@ -50,9 +50,6 @@ class TaskRepository:
 
     def update(self, task_id: UUID, payload: TaskUpdate) -> TaskRecord:
         task = self.get(task_id)
-        if task.state in {TaskState.CLOSED, TaskState.CANCELLED}:
-            raise InvalidTaskTransition(task.state, task.state)
-
         changes = payload.model_dump(exclude_unset=True)
         for field, value in changes.items():
             setattr(task, field, value)
