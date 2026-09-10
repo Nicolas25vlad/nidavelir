@@ -12,6 +12,13 @@ export type TaskState =
   | "CLOSED"
   | "CANCELLED";
 
+export interface ValidationCommand {
+  name: string;
+  type: "test" | "lint" | "build";
+  command: string;
+  timeout_seconds: number;
+}
+
 export interface TaskTransition {
   id: number;
   from_state: TaskState;
@@ -27,6 +34,8 @@ export interface Task {
   repository: string;
   base_branch: string;
   acceptance_criteria: string[];
+  validation_commands: ValidationCommand[];
+  merge_commit_sha: string | null;
   state: TaskState;
   created_at: string;
   updated_at: string;
@@ -51,6 +60,7 @@ export interface Attempt {
   container_name: string;
   volume_name: string;
   branch_name: string;
+  base_commit_sha?: string | null;
   commit_sha: string | null;
   result: Record<string, unknown> | null;
   exit_code: number | null;
@@ -66,12 +76,54 @@ export interface AttemptLogs {
   logs: string;
 }
 
+export interface AttemptDiff {
+  attempt_id: string;
+  branch_name: string;
+  base_commit_sha: string | null;
+  commit_sha: string | null;
+  stat: string;
+  patch: string;
+}
+
+export interface ValidationCheck {
+  id: string;
+  task_id: string;
+  attempt_id: string;
+  position: number;
+  name: string;
+  check_type: string;
+  command: string;
+  status: "PENDING" | "RUNNING" | "PASSED" | "FAILED" | "TIMED_OUT";
+  exit_code: number | null;
+  output: string;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+}
+
+export interface ReviewDecision {
+  id: string;
+  task_id: string;
+  attempt_id: string;
+  decision: "APPROVED" | "REJECTED";
+  actor: string;
+  feedback: string;
+  created_at: string;
+}
+
+export interface MergeResult {
+  task_id: string;
+  state: TaskState;
+  merge_commit_sha: string;
+}
+
 export interface CreateTaskInput {
   title: string;
   repository: string;
   description?: string;
   base_branch?: string;
   acceptance_criteria?: string[];
+  validation_commands?: ValidationCommand[];
 }
 
 export class ApiError extends Error {
@@ -156,6 +208,34 @@ export class NidavelirApi {
 
   getAttemptLogs(attemptId: string, signal?: AbortSignal): Promise<AttemptLogs> {
     return this.get<AttemptLogs>(`/attempts/${attemptId}/logs`, signal);
+  }
+
+  getAttemptDiff(attemptId: string, signal?: AbortSignal): Promise<AttemptDiff> {
+    return this.get<AttemptDiff>(`/attempts/${attemptId}/diff`, signal);
+  }
+
+  getAttemptChecks(attemptId: string, signal?: AbortSignal): Promise<ValidationCheck[]> {
+    return this.get<ValidationCheck[]>(`/attempts/${attemptId}/checks`, signal);
+  }
+
+  getReviews(taskId: string, signal?: AbortSignal): Promise<ReviewDecision[]> {
+    return this.get<ReviewDecision[]>(`/tasks/${taskId}/reviews`, signal);
+  }
+
+  approveTask(taskId: string, feedback = "", actor = "web"): Promise<ReviewDecision> {
+    return this.request<ReviewDecision>("POST", `/tasks/${taskId}/approve`, {
+      body: { actor, feedback },
+    });
+  }
+
+  rejectTask(taskId: string, feedback: string, actor = "web"): Promise<ReviewDecision> {
+    return this.request<ReviewDecision>("POST", `/tasks/${taskId}/reject`, {
+      body: { actor, feedback },
+    });
+  }
+
+  mergeTask(taskId: string): Promise<MergeResult> {
+    return this.request<MergeResult>("POST", `/tasks/${taskId}/merge`);
   }
 }
 
