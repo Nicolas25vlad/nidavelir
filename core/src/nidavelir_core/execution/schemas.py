@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import AttemptStatus
+from .models import AttemptStatus, ValidationCheckStatus
 
 
 class StartTaskRequest(BaseModel):
@@ -45,3 +45,21 @@ class AttemptDiffRead(BaseModel):
     commit_sha: str | None
     stat: str
     patch: str
+
+
+class ValidationCheckRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    task_id: UUID
+    attempt_id: UUID
+    position: int
+    name: str
+    check_type: str
+    command: str
+    status: ValidationCheckStatus
+    exit_code: int | None
+    output: str
+    started_at: datetime | None
+    finished_at: datetime | None
+    created_at: datetime
