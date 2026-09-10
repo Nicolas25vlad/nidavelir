@@ -23,7 +23,14 @@ Configure runtime credentials once:
 sudo nano /opt/nidavelir/.env
 ```
 
-At minimum, set `NIDAVELIR_GITHUB_TOKEN` and the credential for the harnesses you use. Codex currently uses `NIDAVELIR_OPENAI_API_KEY`.
+Set `NIDAVELIR_GITHUB_TOKEN`, then configure at least one coding harness:
+
+```dotenv
+NIDAVELIR_OPENAI_API_KEY=   # Codex CLI
+NIDAVELIR_CURSOR_API_KEY=   # Cursor Agent CLI
+```
+
+You can configure either harness or both. `nidavelir doctor` reports which ones are ready.
 
 Then validate and start:
 
