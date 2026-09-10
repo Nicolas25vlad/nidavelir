@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     )
 
     env: str = "development"
+    installation_id: str = "development"
     log_level: str = "INFO"
     max_parallel_workers: int = 2
     database_url: str = "postgresql+psycopg://nidavelir:nidavelir@localhost:5432/nidavelir"
