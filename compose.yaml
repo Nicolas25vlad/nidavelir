@@ -13,6 +13,13 @@ services:
       timeout: 5s
       retries: 10
 
+  worker-image:
+    build:
+      context: ./worker
+    image: nidavelir-worker:dev
+    command: ["true"]
+    restart: "no"
+
   core:
     build:
       context: ./core
@@ -20,11 +27,18 @@ services:
       NIDAVELIR_DATABASE_URL: postgresql+psycopg://nidavelir:nidavelir@postgres:5432/nidavelir
       NIDAVELIR_ENV: development
       NIDAVELIR_LOG_LEVEL: INFO
+      NIDAVELIR_WORKER_IMAGE: nidavelir-worker:dev
+      NIDAVELIR_GITHUB_TOKEN: ${NIDAVELIR_GITHUB_TOKEN:-}
+      NIDAVELIR_OPENAI_API_KEY: ${NIDAVELIR_OPENAI_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
+      worker-image:
+        condition: service_completed_successfully
     ports:
       - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
 volumes:

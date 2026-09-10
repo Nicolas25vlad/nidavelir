@@ -33,6 +33,7 @@ class TaskRepository:
         statement = (
             select(TaskRecord)
             .options(selectinload(TaskRecord.transitions))
+            .execution_options(populate_existing=True)
             .order_by(TaskRecord.created_at.desc())
         )
         return list(self.session.scalars(statement).all())
@@ -42,6 +43,7 @@ class TaskRepository:
             select(TaskRecord)
             .where(TaskRecord.id == task_id)
             .options(selectinload(TaskRecord.transitions))
+            .execution_options(populate_existing=True)
         )
         task = self.session.scalar(statement)
         if task is None:

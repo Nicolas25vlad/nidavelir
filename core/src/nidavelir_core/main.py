@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .execution.router import router as execution_router
+from .execution.service import cleanup_orphaned_resources
 from .logging import configure_logging
 from .settings import get_settings
 from .tasks.router import router as tasks_router
@@ -13,6 +15,7 @@ from .tasks.router import router as tasks_router
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level)
+    cleanup_orphaned_resources()
     yield
 
 
@@ -30,6 +33,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(tasks_router)
+app.include_router(execution_router)
 
 
 @app.get("/health", tags=["system"])

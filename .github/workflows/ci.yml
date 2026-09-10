@@ -42,6 +42,9 @@ jobs:
       - name: Test
         run: pytest -q
 
+      - name: Build Core image
+        run: docker build -t nidavelir-core:ci .
+
   web:
     name: Web
     runs-on: ubuntu-latest
@@ -72,8 +75,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Validate entrypoint syntax
-        run: bash -n worker/entrypoint.sh
+      - name: Validate worker scripts
+        run: bash -n worker/*.sh
 
       - name: Build worker image
         run: docker build -t nidavelir-worker:ci worker/
@@ -85,6 +88,12 @@ jobs:
 
       - name: Smoke test Codex CLI
         run: docker run --rm nidavelir-worker:ci codex --version
+
+      - name: Verify worker helpers exist
+        run: |
+          docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-prepare
+          docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-run-task
+          docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-push
 
   compose:
     name: Compose
