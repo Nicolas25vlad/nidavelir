@@ -121,3 +121,29 @@ class CoreClient:
 
     def get_task_checks(self, task_id: str) -> list[dict[str, Any]]:
         return self._request("GET", f"/tasks/{task_id}/checks")
+
+    def get_reviews(self, task_id: str) -> list[dict[str, Any]]:
+        return self._request("GET", f"/tasks/{task_id}/reviews")
+
+    def approve_task(
+        self,
+        task_id: str,
+        *,
+        actor: str = "mcp",
+        feedback: str = "",
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"/tasks/{task_id}/approve",
+            json={"actor": actor, "feedback": feedback},
+        )
+
+    def reject_task(self, task_id: str, *, actor: str = "mcp", feedback: str) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            f"/tasks/{task_id}/reject",
+            json={"actor": actor, "feedback": feedback},
+        )
+
+    def merge_task(self, task_id: str) -> dict[str, Any]:
+        return self._request("POST", f"/tasks/{task_id}/merge")
