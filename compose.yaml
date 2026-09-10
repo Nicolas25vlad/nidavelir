@@ -41,5 +41,14 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
+  web:
+    build:
+      context: ./web
+    depends_on:
+      - core
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
 volumes:
   nidavelir-postgres:
