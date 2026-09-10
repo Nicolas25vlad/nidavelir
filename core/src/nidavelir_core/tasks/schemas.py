@@ -1,9 +1,17 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .domain import TaskState
+
+
+class ValidationCommand(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    type: Literal["test", "lint", "build"]
+    command: str = Field(min_length=1, max_length=4000)
+    timeout_seconds: int = Field(default=300, ge=1, le=3600)
 
 
 class TaskCreate(BaseModel):
@@ -12,6 +20,7 @@ class TaskCreate(BaseModel):
     repository: str = Field(min_length=1, max_length=500)
     base_branch: str = Field(default="main", min_length=1, max_length=200)
     acceptance_criteria: list[str] = Field(default_factory=list, max_length=100)
+    validation_commands: list[ValidationCommand] = Field(default_factory=list, max_length=50)
 
 
 class TaskUpdate(BaseModel):
@@ -20,6 +29,7 @@ class TaskUpdate(BaseModel):
     repository: str | None = Field(default=None, min_length=1, max_length=500)
     base_branch: str | None = Field(default=None, min_length=1, max_length=200)
     acceptance_criteria: list[str] | None = Field(default=None, max_length=100)
+    validation_commands: list[ValidationCommand] | None = Field(default=None, max_length=50)
 
 
 class TaskTransitionRequest(BaseModel):
@@ -46,6 +56,7 @@ class TaskRead(BaseModel):
     repository: str
     base_branch: str
     acceptance_criteria: list[str]
+    validation_commands: list[ValidationCommand]
     state: TaskState
     created_at: datetime
     updated_at: datetime
