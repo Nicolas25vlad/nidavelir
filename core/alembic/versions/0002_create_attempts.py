@@ -42,6 +42,8 @@ def upgrade() -> None:
         sa.Column("container_name", sa.String(length=200), nullable=False),
         sa.Column("volume_name", sa.String(length=200), nullable=False),
         sa.Column("branch_name", sa.String(length=240), nullable=False),
+        sa.Column("commit_sha", sa.String(length=64), nullable=True),
+        sa.Column("result", sa.JSON(), nullable=True),
         sa.Column("logs", sa.Text(), nullable=False),
         sa.Column("exit_code", sa.Integer(), nullable=True),
         sa.Column("failure_reason", sa.Text(), nullable=True),
