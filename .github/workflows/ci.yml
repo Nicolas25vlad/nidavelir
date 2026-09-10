@@ -97,6 +97,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build Web image
+        run: docker build -t nidavelir-web:ci .
+
   worker:
     name: Worker
     runs-on: ubuntu-latest
