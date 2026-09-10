@@ -5,7 +5,11 @@ from sqlalchemy.pool import StaticPool
 from nidavelir_core.database import Base
 from nidavelir_core.execution.models import AttemptStatus
 from nidavelir_core.execution.recovery import RESTART_REASON, recover_interrupted_attempts
-from nidavelir_core.execution.repository import AttemptRepository
+from nidavelir_core.execution.repository import (
+    LOG_TRUNCATION_MARKER,
+    MAX_PERSISTED_LOG_CHARS,
+    AttemptRepository,
+)
 from nidavelir_core.tasks.domain import TaskState
 from nidavelir_core.tasks.repository import TaskRepository
 from nidavelir_core.tasks.schemas import TaskCreate
@@ -78,5 +82,23 @@ def test_recovery_marks_running_attempt_failed_and_task_retryable() -> None:
         assert attempt.finished_at is not None
         assert task.state is TaskState.NEEDS_CHANGES
         assert "interrupted by Core restart" in (task.transitions[-1].reason or "")
+
+    engine.dispose()
+
+
+def test_worker_logs_keep_a_bounded_tail() -> None:
+    engine, factory = _session_factory()
+    task_id, attempt_id = _create_interrupted(factory, running=False)
+
+    with factory() as session:
+        attempts = AttemptRepository(session)
+        attempts.append_logs(attempt_id, "A" * MAX_PERSISTED_LOG_CHARS)
+        attempts.append_logs(attempt_id, "TAIL")
+        persisted = attempts.get(attempt_id)
+
+        assert len(persisted.logs) == MAX_PERSISTED_LOG_CHARS
+        assert persisted.logs.startswith(LOG_TRUNCATION_MARKER)
+        assert persisted.logs.endswith("TAIL")
+        assert persisted.task_id == task_id
 
     engine.dispose()
