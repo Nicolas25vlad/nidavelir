@@ -50,6 +50,9 @@ services:
       NIDAVELIR_MCP_TRANSPORT: streamable-http
       NIDAVELIR_MCP_HOST: 0.0.0.0
       NIDAVELIR_MCP_PORT: 8001
+      NIDAVELIR_MCP_AUTH_TOKEN: ${NIDAVELIR_MCP_AUTH_TOKEN:-nidavelir-development-token}
+      NIDAVELIR_MCP_RESOURCE_URL: ${NIDAVELIR_MCP_RESOURCE_URL:-http://127.0.0.1:8001/mcp}
+      NIDAVELIR_MCP_ISSUER_URL: ${NIDAVELIR_MCP_ISSUER_URL:-http://127.0.0.1:8001}
     depends_on:
       - core
     ports:
