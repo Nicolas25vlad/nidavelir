@@ -5,13 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from nidavelir_core.database import get_session
-from nidavelir_core.execution.merge import MergeConflict, MergeProviderError, merge_approved_task
-from nidavelir_core.execution.review import (
-    ReviewConflict,
-    ReviewRepository,
-    approve_task as approve_review,
-    reject_task as reject_review,
+from nidavelir_core.execution.merge import (
+    MergeConflict,
+    MergeProviderError,
+    merge_approved_task,
 )
+from nidavelir_core.execution.review import ReviewConflict, ReviewRepository
+from nidavelir_core.execution.review import approve_task as approve_review
+from nidavelir_core.execution.review import reject_task as reject_review
 
 from .domain import InvalidTaskTransition, TaskState, allowed_transitions
 from .repository import TaskNotFound, TaskRepository
