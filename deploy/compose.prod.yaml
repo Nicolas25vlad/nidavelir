@@ -13,6 +13,7 @@ services:
       - data
     cpus: ${NIDAVELIR_POSTGRES_CPUS:-0.50}
     mem_limit: ${NIDAVELIR_POSTGRES_MEMORY:-512m}
+    pids_limit: ${NIDAVELIR_POSTGRES_PIDS_LIMIT:-128}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nidavelir -d nidavelir"]
       interval: 5s
@@ -37,6 +38,7 @@ services:
       NIDAVELIR_WORKER_IMAGE: ghcr.io/nicolas25vlad/nidavelir-worker:${NIDAVELIR_VERSION:-latest}
       NIDAVELIR_WORKER_CPUS: ${NIDAVELIR_WORKER_CPUS:-1.0}
       NIDAVELIR_WORKER_MEMORY: ${NIDAVELIR_WORKER_MEMORY:-2g}
+      NIDAVELIR_WORKER_PIDS_LIMIT: ${NIDAVELIR_WORKER_PIDS_LIMIT:-256}
       NIDAVELIR_WORKER_TIMEOUT_SECONDS: ${NIDAVELIR_WORKER_TIMEOUT_SECONDS:-1800}
       NIDAVELIR_WORKER_STOP_TIMEOUT_SECONDS: ${NIDAVELIR_WORKER_STOP_TIMEOUT_SECONDS:-10}
       NIDAVELIR_GITHUB_TOKEN: ${NIDAVELIR_GITHUB_TOKEN:-}
@@ -48,12 +50,13 @@ services:
       worker-image:
         condition: service_completed_successfully
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${NIDAVELIR_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
     networks:
       - data
       - control
     cpus: ${NIDAVELIR_CORE_CPUS:-0.75}
     mem_limit: ${NIDAVELIR_CORE_MEMORY:-512m}
+    pids_limit: ${NIDAVELIR_CORE_PIDS_LIMIT:-256}
     restart: unless-stopped
 
   mcp:
@@ -74,6 +77,7 @@ services:
       - control
     cpus: ${NIDAVELIR_MCP_CPUS:-0.25}
     mem_limit: ${NIDAVELIR_MCP_MEMORY:-256m}
+    pids_limit: ${NIDAVELIR_MCP_PIDS_LIMIT:-128}
     restart: unless-stopped
 
   web:
@@ -86,6 +90,7 @@ services:
       - control
     cpus: ${NIDAVELIR_WEB_CPUS:-0.25}
     mem_limit: ${NIDAVELIR_WEB_MEMORY:-128m}
+    pids_limit: ${NIDAVELIR_WEB_PIDS_LIMIT:-64}
     restart: unless-stopped
 
 volumes:
