@@ -124,6 +124,7 @@ jobs:
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-prepare
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-run-task
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-push
+          docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-capture-diff
 
   compose:
     name: Compose
