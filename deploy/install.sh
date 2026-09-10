@@ -18,6 +18,10 @@ need() {
   command -v "$1" >/dev/null 2>&1 || fatal "$1 is required"
 }
 
+random_hex() {
+  od -An -N32 -tx1 /dev/urandom | tr -d ' \n'
+}
+
 if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
   fatal "initial installation requires root (for example: curl ... | sudo bash)"
 fi
@@ -48,10 +52,12 @@ curl -fsSL "$RAW_BASE/deploy/compose.prod.yaml" -o "$compose_tmp"
 curl -fsSL "$RAW_BASE/deploy/nidavelir" -o "$cli_tmp"
 
 if [[ ! -f "$INSTALL_DIR/.env" ]]; then
-  postgres_password="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
+  postgres_password="$(random_hex)"
+  mcp_auth_token="$(random_hex)"
   cat > "$INSTALL_DIR/.env" <<EOF
 NIDAVELIR_VERSION=$VERSION
-NIDAVELIR_BIND_ADDRESS=0.0.0.0
+NIDAVELIR_WEB_BIND_ADDRESS=127.0.0.1
+NIDAVELIR_MCP_BIND_ADDRESS=127.0.0.1
 NIDAVELIR_POSTGRES_PASSWORD=$postgres_password
 NIDAVELIR_DATABASE_URL=postgresql+psycopg://nidavelir:$postgres_password@postgres:5432/nidavelir
 NIDAVELIR_LOG_LEVEL=INFO
@@ -63,10 +69,23 @@ NIDAVELIR_WORKER_STOP_TIMEOUT_SECONDS=10
 NIDAVELIR_GITHUB_TOKEN=
 NIDAVELIR_OPENAI_API_KEY=
 NIDAVELIR_CURSOR_API_KEY=
+NIDAVELIR_MCP_AUTH_TOKEN=$mcp_auth_token
+NIDAVELIR_MCP_RESOURCE_URL=http://127.0.0.1:8001/mcp
+NIDAVELIR_MCP_ISSUER_URL=http://127.0.0.1:8001
 EOF
-  printf 'Created %s/.env with a random PostgreSQL password.\n' "$INSTALL_DIR"
+  printf 'Created %s/.env with random PostgreSQL and MCP secrets.\n' "$INSTALL_DIR"
 else
-  printf 'Keeping existing %s/.env unchanged.\n' "$INSTALL_DIR"
+  printf 'Keeping existing %s/.env values.\n' "$INSTALL_DIR"
+  if ! grep -q '^NIDAVELIR_MCP_AUTH_TOKEN=.' "$INSTALL_DIR/.env"; then
+    printf '\nNIDAVELIR_MCP_AUTH_TOKEN=%s\n' "$(random_hex)" >> "$INSTALL_DIR/.env"
+    printf 'Added a random MCP bearer token to the existing configuration.\n'
+  fi
+  if ! grep -q '^NIDAVELIR_MCP_RESOURCE_URL=' "$INSTALL_DIR/.env"; then
+    printf 'NIDAVELIR_MCP_RESOURCE_URL=http://127.0.0.1:8001/mcp\n' >> "$INSTALL_DIR/.env"
+  fi
+  if ! grep -q '^NIDAVELIR_MCP_ISSUER_URL=' "$INSTALL_DIR/.env"; then
+    printf 'NIDAVELIR_MCP_ISSUER_URL=http://127.0.0.1:8001\n' >> "$INSTALL_DIR/.env"
+  fi
 fi
 
 chown root:"$OPERATOR_GROUP" "$INSTALL_DIR/.env"
@@ -82,7 +101,8 @@ if [[ -n "$OPERATOR_USER" && "$OPERATOR_USER" != "root" ]]; then
   printf 'Open a new login session before using the new group membership.\n'
 fi
 printf '1. Edit configuration: nano %s/.env\n' "$INSTALL_DIR"
-printf '2. Ensure your operator account can access Docker (Docker group or rootless Docker).\n'
-printf '3. Check config: nidavelir doctor\n'
-printf '4. Start/update: nidavelir update %s\n' "$VERSION"
-printf '\nWeb: http://<server>:8080\nMCP: http://<server>:8001/mcp\nCore: http://<server>:8000\n'
+printf '2. For remote MCP, set its bind/resource/issuer values to your HTTPS deployment.\n'
+printf '3. Ensure your operator account can access Docker (Docker group or rootless Docker).\n'
+printf '4. Check config: nidavelir doctor\n'
+printf '5. Start/update: nidavelir update %s\n' "$VERSION"
+printf '\nWeb: http://127.0.0.1:8080 by default\nMCP: http://127.0.0.1:8001/mcp by default (Bearer auth required)\nCore: internal Docker network only\n'

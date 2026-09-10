@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +17,9 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8001
     request_timeout_seconds: float = 30.0
+    auth_token: SecretStr | None = None
+    resource_url: str = "http://127.0.0.1:8001/mcp"
+    issuer_url: str = "http://127.0.0.1:8001"
 
 
 @lru_cache

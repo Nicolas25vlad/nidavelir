@@ -39,8 +39,6 @@ services:
         condition: service_healthy
       worker-image:
         condition: service_completed_successfully
-    ports:
-      - "${NIDAVELIR_BIND_ADDRESS:-0.0.0.0}:8000:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
@@ -52,10 +50,13 @@ services:
       NIDAVELIR_MCP_TRANSPORT: streamable-http
       NIDAVELIR_MCP_HOST: 0.0.0.0
       NIDAVELIR_MCP_PORT: 8001
+      NIDAVELIR_MCP_AUTH_TOKEN: ${NIDAVELIR_MCP_AUTH_TOKEN:?set NIDAVELIR_MCP_AUTH_TOKEN}
+      NIDAVELIR_MCP_RESOURCE_URL: ${NIDAVELIR_MCP_RESOURCE_URL:-http://127.0.0.1:8001/mcp}
+      NIDAVELIR_MCP_ISSUER_URL: ${NIDAVELIR_MCP_ISSUER_URL:-http://127.0.0.1:8001}
     depends_on:
       - core
     ports:
-      - "${NIDAVELIR_BIND_ADDRESS:-0.0.0.0}:8001:8001"
+      - "${NIDAVELIR_MCP_BIND_ADDRESS:-127.0.0.1}:8001:8001"
     restart: unless-stopped
 
   web:
@@ -63,7 +64,7 @@ services:
     depends_on:
       - core
     ports:
-      - "${NIDAVELIR_BIND_ADDRESS:-0.0.0.0}:8080:80"
+      - "${NIDAVELIR_WEB_BIND_ADDRESS:-127.0.0.1}:8080:80"
     restart: unless-stopped
 
 volumes:

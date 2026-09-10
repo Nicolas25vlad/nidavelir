@@ -6,9 +6,11 @@ from typing import Any
 
 from mcp.server import MCPServer
 
+from .auth import server_auth_kwargs
 from .client import CoreAPIError, CoreClient
 from .settings import get_settings
 
+_settings = get_settings()
 mcp = MCPServer(
     "Nidavelir",
     instructions=(
@@ -17,6 +19,7 @@ mcp = MCPServer(
         "Agent completion is not approval: validation must pass before review. "
         "Merge is always explicit."
     ),
+    **server_auth_kwargs(_settings),
 )
 
 
@@ -248,6 +251,11 @@ def main() -> None:
     if settings.transport == "stdio":
         mcp.run()
         return
+
+    if settings.auth_token is None:
+        raise RuntimeError(
+            "NIDAVELIR_MCP_AUTH_TOKEN is required for streamable-http transport"
+        )
 
     mcp.run(
         transport="streamable-http",
