@@ -73,17 +73,22 @@ def enqueue_attempt(
     attempts = AttemptRepository(session)
     task = tasks.get(task_id)
 
-    if task.state in {TaskState.BACKLOG, TaskState.NEEDS_CHANGES}:
-        task = tasks.transition(task_id, TaskState.QUEUED, reason="execution requested")
-    elif task.state != TaskState.QUEUED:
-        raise ExecutionConflict(f"task {task_id} cannot start from {task.state}")
-
     latest = attempts.latest_for_task(task_id)
     if latest is not None and latest.status in {
         AttemptStatus.PREPARING,
         AttemptStatus.RUNNING,
     }:
         raise ExecutionConflict(f"task {task_id} already has an active attempt")
+
+    if attempts.count_active() >= settings.max_parallel_workers:
+        raise ExecutionConflict(
+            f"worker capacity reached ({settings.max_parallel_workers} active)"
+        )
+
+    if task.state in {TaskState.BACKLOG, TaskState.NEEDS_CHANGES}:
+        task = tasks.transition(task_id, TaskState.QUEUED, reason="execution requested")
+    elif task.state != TaskState.QUEUED:
+        raise ExecutionConflict(f"task {task_id} cannot start from {task.state}")
 
     number = attempts.next_number(task_id)
     short_id = str(task.id)[:8]
@@ -221,6 +226,43 @@ def _task_payload(task) -> str:
     )
 
 
+def _capture_agent_metadata(
+    attempts: AttemptRepository,
+    attempt_id: UUID,
+) -> dict | None:
+    logs = attempts.get(attempt_id).logs
+
+    version_match = re.search(
+        r"^NIDAVELIR_HARNESS_VERSION=(.+)$",
+        logs,
+        re.MULTILINE,
+    )
+    if version_match:
+        attempts.set_harness_version(
+            attempt_id,
+            version_match.group(1).strip(),
+        )
+
+    result_matches = re.findall(
+        r"^NIDAVELIR_RESULT=(\{.*\})$",
+        logs,
+        re.MULTILINE,
+    )
+    if not result_matches:
+        return None
+
+    try:
+        result = json.loads(result_matches[-1])
+    except json.JSONDecodeError:
+        logger.warning("attempt %s emitted an invalid result payload", attempt_id)
+        return None
+
+    if isinstance(result, dict):
+        attempts.set_result(attempt_id, result)
+        return result
+    return None
+
+
 def _transition_failure(tasks: TaskRepository, task_id: UUID, reason: str) -> None:
     try:
         task = tasks.get(task_id)
@@ -304,6 +346,7 @@ def execute_attempt(attempt_id: UUID) -> None:
                 environment=agent_environment,
                 attempts=attempts,
             )
+            result = _capture_agent_metadata(attempts, attempt.id)
 
             current_task = tasks.get(task.id)
             if current_task.state == TaskState.CANCELLED:
@@ -333,17 +376,11 @@ def execute_attempt(attempt_id: UUID) -> None:
                 )
                 _transition_failure(tasks, task.id, "coding harness failed")
                 return
-
-            logs = attempts.get(attempt.id).logs
-            version_match = re.search(
-                r"^NIDAVELIR_HARNESS_VERSION=(.+)$",
-                logs,
-                re.MULTILINE,
-            )
-            if version_match:
-                attempts.set_harness_version(
-                    attempt.id,
-                    version_match.group(1).strip(),
+            if result is None or result.get("status") != "success":
+                raise WorkerStageError(
+                    "result",
+                    65,
+                    "worker did not emit a valid successful NIDAVELIR_RESULT payload",
                 )
 
             push_environment = {
