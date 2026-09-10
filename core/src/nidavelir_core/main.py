@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .execution.router import router as execution_router
 from .logging import configure_logging
 from .settings import get_settings
 from .tasks.router import router as tasks_router
@@ -30,6 +31,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(tasks_router)
+app.include_router(execution_router)
 
 
 @app.get("/health", tags=["system"])
