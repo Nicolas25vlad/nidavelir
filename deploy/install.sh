@@ -50,6 +50,7 @@ NIDAVELIR_WORKER_TIMEOUT_SECONDS=1800
 NIDAVELIR_WORKER_STOP_TIMEOUT_SECONDS=10
 NIDAVELIR_GITHUB_TOKEN=
 NIDAVELIR_OPENAI_API_KEY=
+NIDAVELIR_CURSOR_API_KEY=
 EOF
   chmod 0600 "$INSTALL_DIR/.env"
   printf 'Created %s/.env with a random PostgreSQL password.\n' "$INSTALL_DIR"
@@ -64,6 +65,7 @@ docker compose --env-file "$INSTALL_DIR/.env" -f "$INSTALL_DIR/compose.yaml" con
 
 printf '\nNidavelir installed.\n'
 printf '1. Edit secrets: sudo nano %s/.env\n' "$INSTALL_DIR"
-printf '2. Check config: sudo nidavelir doctor\n'
-printf '3. Start/update: sudo nidavelir update %s\n' "$VERSION"
+printf '2. Set GitHub plus at least one harness key (OpenAI or Cursor).\n'
+printf '3. Check config: sudo nidavelir doctor\n'
+printf '4. Start/update: sudo nidavelir update %s\n' "$VERSION"
 printf '\nWeb: http://<server>:8080\nMCP: http://<server>:8001/mcp\nCore: http://<server>:8000\n'
