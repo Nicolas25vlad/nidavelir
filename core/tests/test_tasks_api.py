@@ -55,6 +55,7 @@ def test_task_crud_survives_new_sessions(client: TestClient) -> None:
 
     assert created["state"] == "BACKLOG"
     assert created["transitions"] == []
+    assert created["merge_commit_sha"] is None
 
     fetched = client.get(f"/tasks/{task_id}")
     assert fetched.status_code == 200
@@ -72,30 +73,16 @@ def test_task_crud_survives_new_sessions(client: TestClient) -> None:
     assert [task["id"] for task in listed.json()] == [task_id]
 
 
-def test_full_lifecycle_persists_transition_history(client: TestClient) -> None:
+def test_controlled_lifecycle_states_cannot_be_forced(client: TestClient) -> None:
     task = create_task(client)
-    task_id = task["id"]
-    lifecycle = [
-        "QUEUED",
-        "RUNNING",
-        "AGENT_DONE",
-        "VALIDATING",
-        "APPROVED",
-        "MERGED",
-        "CLOSED",
-    ]
 
-    for state in lifecycle:
+    for state in ["AGENT_DONE", "VALIDATING", "APPROVED", "MERGED", "CLOSED"]:
         response = client.post(
-            f"/tasks/{task_id}/transitions",
-            json={"state": state, "reason": f"move to {state}"},
+            f"/tasks/{task['id']}/transitions",
+            json={"state": state, "reason": "bypass"},
         )
-        assert response.status_code == 200
-        assert response.json()["state"] == state
-
-    persisted = client.get(f"/tasks/{task_id}").json()
-    assert persisted["state"] == "CLOSED"
-    assert [event["to_state"] for event in persisted["transitions"]] == lifecycle
+        assert response.status_code == 409
+        assert "controlled by execution" in response.json()["detail"]
 
 
 def test_invalid_transition_returns_conflict(client: TestClient) -> None:
