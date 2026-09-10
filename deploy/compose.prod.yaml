@@ -1,3 +1,5 @@
+name: ${NIDAVELIR_COMPOSE_PROJECT_NAME:-nidavelir}
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -6,7 +8,11 @@ services:
       POSTGRES_USER: nidavelir
       POSTGRES_PASSWORD: ${NIDAVELIR_POSTGRES_PASSWORD:?set NIDAVELIR_POSTGRES_PASSWORD}
     volumes:
-      - nidavelir-postgres:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - data
+    cpus: ${NIDAVELIR_POSTGRES_CPUS:-0.50}
+    mem_limit: ${NIDAVELIR_POSTGRES_MEMORY:-512m}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nidavelir -d nidavelir"]
       interval: 5s
@@ -17,6 +23,7 @@ services:
   worker-image:
     image: ghcr.io/nicolas25vlad/nidavelir-worker:${NIDAVELIR_VERSION:-latest}
     command: ["true"]
+    network_mode: none
     restart: "no"
 
   core:
@@ -24,6 +31,7 @@ services:
     environment:
       NIDAVELIR_DATABASE_URL: ${NIDAVELIR_DATABASE_URL:?set NIDAVELIR_DATABASE_URL}
       NIDAVELIR_ENV: production
+      NIDAVELIR_INSTALLATION_ID: ${NIDAVELIR_INSTALLATION_ID:?set NIDAVELIR_INSTALLATION_ID}
       NIDAVELIR_LOG_LEVEL: ${NIDAVELIR_LOG_LEVEL:-INFO}
       NIDAVELIR_MAX_PARALLEL_WORKERS: ${NIDAVELIR_MAX_PARALLEL_WORKERS:-2}
       NIDAVELIR_WORKER_IMAGE: ghcr.io/nicolas25vlad/nidavelir-worker:${NIDAVELIR_VERSION:-latest}
@@ -41,6 +49,11 @@ services:
         condition: service_completed_successfully
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - data
+      - control
+    cpus: ${NIDAVELIR_CORE_CPUS:-0.75}
+    mem_limit: ${NIDAVELIR_CORE_MEMORY:-512m}
     restart: unless-stopped
 
   mcp:
@@ -57,6 +70,10 @@ services:
       - core
     ports:
       - "${NIDAVELIR_MCP_BIND_ADDRESS:-127.0.0.1}:8001:8001"
+    networks:
+      - control
+    cpus: ${NIDAVELIR_MCP_CPUS:-0.25}
+    mem_limit: ${NIDAVELIR_MCP_MEMORY:-256m}
     restart: unless-stopped
 
   web:
@@ -65,7 +82,16 @@ services:
       - core
     ports:
       - "${NIDAVELIR_WEB_BIND_ADDRESS:-127.0.0.1}:8080:80"
+    networks:
+      - control
+    cpus: ${NIDAVELIR_WEB_CPUS:-0.25}
+    mem_limit: ${NIDAVELIR_WEB_MEMORY:-128m}
     restart: unless-stopped
 
 volumes:
-  nidavelir-postgres:
+  postgres-data:
+
+networks:
+  data:
+    internal: true
+  control:
