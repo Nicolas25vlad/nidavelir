@@ -10,7 +10,7 @@ from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
 
 from .models import AttemptStatus
 from .repository import AttemptNotFound, AttemptRepository
-from .schemas import AttemptLogsRead, AttemptRead, StartTaskRequest
+from .schemas import AttemptDiffRead, AttemptLogsRead, AttemptRead, StartTaskRequest
 from .service import (
     ExecutionConfigurationError,
     ExecutionConflict,
@@ -82,6 +82,22 @@ def get_attempt_logs(attempt_id: UUID, session: SessionDep) -> AttemptLogsRead:
     except AttemptNotFound as error:
         raise _attempt_not_found(attempt_id) from error
     return AttemptLogsRead(attempt_id=attempt.id, status=attempt.status, logs=attempt.logs)
+
+
+@router.get("/attempts/{attempt_id}/diff", response_model=AttemptDiffRead)
+def get_attempt_diff(attempt_id: UUID, session: SessionDep) -> AttemptDiffRead:
+    try:
+        attempt = AttemptRepository(session).get(attempt_id)
+    except AttemptNotFound as error:
+        raise _attempt_not_found(attempt_id) from error
+    return AttemptDiffRead(
+        attempt_id=attempt.id,
+        branch_name=attempt.branch_name,
+        base_commit_sha=attempt.base_commit_sha,
+        commit_sha=attempt.commit_sha,
+        stat=attempt.diff_stat or "",
+        patch=attempt.diff_patch or "",
+    )
 
 
 @router.post("/tasks/{task_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
