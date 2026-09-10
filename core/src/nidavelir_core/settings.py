@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     github_token: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     cursor_api_key: SecretStr | None = None
+    codex_auth_volume: str = "nidavelir-codex-auth"
+    cursor_auth_volume: str = "nidavelir-cursor-auth"
 
 
 @lru_cache
