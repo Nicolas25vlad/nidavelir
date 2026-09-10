@@ -22,6 +22,7 @@ fi
 
 need curl
 need docker
+need od
 docker compose version >/dev/null 2>&1 || fatal "Docker Compose v2 is required"
 
 mkdir -p "$INSTALL_DIR"
@@ -35,7 +36,7 @@ curl -fsSL "$RAW_BASE/deploy/compose.prod.yaml" -o "$compose_tmp"
 curl -fsSL "$RAW_BASE/deploy/nidavelir" -o "$cli_tmp"
 
 if [[ ! -f "$INSTALL_DIR/.env" ]]; then
-  postgres_password="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 40)"
+  postgres_password="$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')"
   cat > "$INSTALL_DIR/.env" <<EOF
 NIDAVELIR_VERSION=$VERSION
 NIDAVELIR_BIND_ADDRESS=0.0.0.0
