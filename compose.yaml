@@ -41,5 +41,19 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
+  mcp:
+    build:
+      context: ./mcp
+    environment:
+      NIDAVELIR_MCP_CORE_URL: http://core:8000
+      NIDAVELIR_MCP_TRANSPORT: streamable-http
+      NIDAVELIR_MCP_HOST: 0.0.0.0
+      NIDAVELIR_MCP_PORT: 8001
+    depends_on:
+      - core
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
 volumes:
   nidavelir-postgres:
