@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     github_token: SecretStr | None = None
     openai_api_key: SecretStr | None = None
+    cursor_api_key: SecretStr | None = None
 
 
 @lru_cache
