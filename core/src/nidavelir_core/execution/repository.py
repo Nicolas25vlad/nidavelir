@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 
 from .models import AttemptRecord, AttemptStatus, utcnow
 
+MAX_PERSISTED_LOG_CHARS = 2_000_000
+LOG_TRUNCATION_MARKER = "[... earlier worker logs truncated ...]\n"
+
 
 class AttemptNotFound(LookupError):
     pass
@@ -132,7 +135,11 @@ class AttemptRepository:
         if not text:
             return
         attempt = self.get(attempt_id)
-        attempt.logs = f"{attempt.logs}{text}"
+        combined = f"{attempt.logs}{text}"
+        if len(combined) > MAX_PERSISTED_LOG_CHARS:
+            tail_size = MAX_PERSISTED_LOG_CHARS - len(LOG_TRUNCATION_MARKER)
+            combined = f"{LOG_TRUNCATION_MARKER}{combined[-tail_size:]}"
+        attempt.logs = combined
         self.session.commit()
 
     def finish(
