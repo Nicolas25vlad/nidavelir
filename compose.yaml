@@ -1,4 +1,4 @@
-name: ${NIDAVELIR_COMPOSE_PROJECT_NAME:-nidavelir-development}
+name: ${NIDAVELIR_COMPOSE_PROJECT_NAME:-nidavelir}
 
 services:
   postgres:
@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: nidavelir
       POSTGRES_PASSWORD: nidavelir
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - nidavelir-postgres:/var/lib/postgresql/data
     networks:
       - data
     cpus: ${NIDAVELIR_POSTGRES_CPUS:-0.50}
@@ -38,6 +38,7 @@ services:
       NIDAVELIR_WORKER_IMAGE: nidavelir-worker:dev
       NIDAVELIR_WORKER_CPUS: ${NIDAVELIR_WORKER_CPUS:-1.0}
       NIDAVELIR_WORKER_MEMORY: ${NIDAVELIR_WORKER_MEMORY:-2g}
+      NIDAVELIR_WORKER_PIDS_LIMIT: ${NIDAVELIR_WORKER_PIDS_LIMIT:-256}
       NIDAVELIR_GITHUB_TOKEN: ${NIDAVELIR_GITHUB_TOKEN:-}
       NIDAVELIR_OPENAI_API_KEY: ${NIDAVELIR_OPENAI_API_KEY:-}
       NIDAVELIR_CURSOR_API_KEY: ${NIDAVELIR_CURSOR_API_KEY:-}
@@ -47,14 +48,15 @@ services:
       worker-image:
         condition: service_completed_successfully
     ports:
-      - "8000:8000"
+      - "${NIDAVELIR_CORE_BIND_ADDRESS:-127.0.0.1}:${NIDAVELIR_CORE_HOST_PORT:-8000}:8000"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${NIDAVELIR_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
     networks:
       - data
       - control
     cpus: ${NIDAVELIR_CORE_CPUS:-0.75}
     mem_limit: ${NIDAVELIR_CORE_MEMORY:-512m}
+    pids_limit: ${NIDAVELIR_CORE_PIDS_LIMIT:-256}
     restart: unless-stopped
 
   mcp:
@@ -71,11 +73,12 @@ services:
     depends_on:
       - core
     ports:
-      - "8001:8001"
+      - "${NIDAVELIR_MCP_BIND_ADDRESS:-127.0.0.1}:${NIDAVELIR_MCP_HOST_PORT:-8001}:8001"
     networks:
       - control
     cpus: ${NIDAVELIR_MCP_CPUS:-0.25}
     mem_limit: ${NIDAVELIR_MCP_MEMORY:-256m}
+    pids_limit: ${NIDAVELIR_MCP_PIDS_LIMIT:-128}
     restart: unless-stopped
 
   web:
@@ -84,15 +87,16 @@ services:
     depends_on:
       - core
     ports:
-      - "8080:80"
+      - "${NIDAVELIR_WEB_BIND_ADDRESS:-127.0.0.1}:${NIDAVELIR_WEB_HOST_PORT:-8080}:80"
     networks:
       - control
     cpus: ${NIDAVELIR_WEB_CPUS:-0.25}
     mem_limit: ${NIDAVELIR_WEB_MEMORY:-128m}
+    pids_limit: ${NIDAVELIR_WEB_PIDS_LIMIT:-64}
     restart: unless-stopped
 
 volumes:
-  postgres-data:
+  nidavelir-postgres:
 
 networks:
   data:
