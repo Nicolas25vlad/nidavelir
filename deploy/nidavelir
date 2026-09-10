@@ -20,8 +20,21 @@ compose() {
 }
 
 require_install() {
-  [[ -f "$COMPOSE_FILE" ]] || fatal "installation not found at $NIDAVELIR_HOME"
-  [[ -f "$ENV_FILE" ]] || fatal "missing $ENV_FILE"
+  [[ -r "$COMPOSE_FILE" ]] || fatal "installation not readable at $COMPOSE_FILE"
+  [[ -r "$ENV_FILE" ]] || fatal "configuration not readable at $ENV_FILE"
+}
+
+require_write_access() {
+  [[ -w "$COMPOSE_FILE" ]] || fatal "$COMPOSE_FILE is not writable; check membership in the nidavelir operator group"
+  [[ -w "$ENV_FILE" ]] || fatal "$ENV_FILE is not writable; check membership in the nidavelir operator group"
+}
+
+require_docker_access() {
+  need docker
+  docker compose version >/dev/null 2>&1 || fatal "Docker Compose v2 is required"
+  if ! docker info >/dev/null 2>&1; then
+    fatal "cannot access the Docker daemon as $(id -un); use rootless Docker or grant this operator Docker access"
+  fi
 }
 
 current_version() {
@@ -31,7 +44,15 @@ current_version() {
 set_version() {
   local version="$1"
   if grep -q '^NIDAVELIR_VERSION=' "$ENV_FILE"; then
-    sed -i "s|^NIDAVELIR_VERSION=.*|NIDAVELIR_VERSION=$version|" "$ENV_FILE"
+    local tmp
+    tmp="$(mktemp)"
+    awk -v version="$version" '
+      BEGIN { updated = 0 }
+      /^NIDAVELIR_VERSION=/ && !updated { print "NIDAVELIR_VERSION=" version; updated = 1; next }
+      { print }
+    ' "$ENV_FILE" > "$tmp"
+    cat "$tmp" > "$ENV_FILE"
+    rm -f "$tmp"
   else
     printf '\nNIDAVELIR_VERSION=%s\n' "$version" >> "$ENV_FILE"
   fi
@@ -39,8 +60,9 @@ set_version() {
 
 cmd_update() {
   require_install
+  require_write_access
+  require_docker_access
   need curl
-  need docker
 
   local requested="${1:-latest}"
   local previous
@@ -54,7 +76,7 @@ cmd_update() {
   trap 'rm -f "$tmp"' RETURN
   curl -fsSL "$RAW_BASE/deploy/compose.prod.yaml" -o "$tmp"
   docker compose --env-file "$ENV_FILE" -f "$tmp" config --quiet
-  install -m 0644 "$tmp" "$COMPOSE_FILE"
+  cat "$tmp" > "$COMPOSE_FILE"
   set_version "$requested"
 
   if ! compose pull; then
@@ -76,11 +98,13 @@ cmd_update() {
 
 cmd_status() {
   require_install
+  require_docker_access
   compose ps
 }
 
 cmd_logs() {
   require_install
+  require_docker_access
   local service="${1:-}"
   if [[ -n "$service" ]]; then
     compose logs --tail=200 -f "$service"
@@ -91,31 +115,52 @@ cmd_logs() {
 
 cmd_restart() {
   require_install
+  require_docker_access
   compose restart "$@"
   compose ps
 }
 
 cmd_stop() {
   require_install
+  require_docker_access
   compose stop
 }
 
 cmd_start() {
   require_install
+  require_docker_access
   compose up -d
   compose ps
 }
 
 cmd_doctor() {
   require_install
-  need docker
-  docker compose version >/dev/null
 
   local failed=0
   local codex_ready=0
   local cursor_ready=0
   printf 'Install dir: %s\n' "$NIDAVELIR_HOME"
   printf 'Version: %s\n' "$(current_version)"
+  printf 'Operator: %s\n' "$(id -un)"
+
+  if [[ -w "$ENV_FILE" && -w "$COMPOSE_FILE" ]]; then
+    printf 'Permissions: operator files writable\n'
+  else
+    printf 'FAILED: operator cannot write Nidavelir config/update files\n'
+    failed=1
+  fi
+
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then
+      printf 'Docker: accessible without sudo\n'
+    else
+      printf 'FAILED: Docker daemon is not accessible as %s\n' "$(id -un)"
+      failed=1
+    fi
+  else
+    printf 'FAILED: Docker Engine and Compose v2 are required\n'
+    failed=1
+  fi
 
   for key in NIDAVELIR_DATABASE_URL NIDAVELIR_POSTGRES_PASSWORD; do
     if ! grep -q "^${key}=." "$ENV_FILE"; then
@@ -131,21 +176,20 @@ cmd_doctor() {
 
   if grep -q '^NIDAVELIR_OPENAI_API_KEY=.' "$ENV_FILE"; then
     codex_ready=1
-    printf 'Harness: Codex configured\n'
+    printf 'Harness: Codex API-key auth configured\n'
   else
-    printf 'Harness: Codex not configured\n'
+    printf 'Harness: Codex API-key auth not configured\n'
   fi
 
   if grep -q '^NIDAVELIR_CURSOR_API_KEY=.' "$ENV_FILE"; then
     cursor_ready=1
-    printf 'Harness: Cursor configured\n'
+    printf 'Harness: Cursor API-key auth configured\n'
   else
-    printf 'Harness: Cursor not configured\n'
+    printf 'Harness: Cursor API-key auth not configured\n'
   fi
 
   if [[ "$codex_ready" -eq 0 && "$cursor_ready" -eq 0 ]]; then
-    printf 'MISSING: configure at least one harness key (OpenAI or Cursor)\n'
-    failed=1
+    printf 'WARN: no API-key harness auth configured; browser-login auth may be configured separately\n'
   fi
 
   if ! compose config --quiet; then
@@ -153,10 +197,10 @@ cmd_doctor() {
     failed=1
   fi
 
-  if compose ps >/dev/null 2>&1; then
+  if docker info >/dev/null 2>&1 && compose ps >/dev/null 2>&1; then
     compose ps
   else
-    printf 'WARN: stack is not running\n'
+    printf 'WARN: stack status unavailable\n'
   fi
 
   if [[ "$failed" -eq 0 ]]; then
@@ -183,8 +227,12 @@ Commands:
   restart [service]  Restart the whole stack or selected service(s)
   start              Start the stack
   stop               Stop services without deleting data
-  doctor             Validate config, harness credentials and runtime prerequisites
+  doctor             Validate permissions, Docker, config and harness readiness
   version            Print configured image version
+
+Routine commands are intentionally unprivileged. If Docker is not accessible to
+your operator account, configure rootless Docker or appropriate Docker access
+instead of prefixing Nidavelir commands with sudo.
 EOF
 }
 
