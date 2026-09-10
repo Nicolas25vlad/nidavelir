@@ -55,5 +55,14 @@ services:
       - "8001:8001"
     restart: unless-stopped
 
+  web:
+    build:
+      context: ./web
+    depends_on:
+      - core
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
 volumes:
   nidavelir-postgres:
