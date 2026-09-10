@@ -263,6 +263,43 @@ def _capture_agent_metadata(
     return None
 
 
+def _capture_git_diff(
+    client,
+    *,
+    settings: Settings,
+    attempt: AttemptRecord,
+    attempts: AttemptRepository,
+    environment: dict[str, str],
+) -> None:
+    diff_code, diff_output = _run_helper(
+        client,
+        settings=settings,
+        attempt=attempt,
+        suffix="diff",
+        command="/usr/local/bin/nidavelir-capture-diff",
+        environment=environment,
+    )
+    if diff_code != 0:
+        raise WorkerStageError("diff", diff_code, diff_output)
+
+    try:
+        payload = json.loads(diff_output)
+        base_commit = str(payload["base_commit"])
+        commit = str(payload["commit"])
+        stat = str(payload.get("stat", ""))
+        patch = str(payload.get("patch", ""))
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        raise WorkerStageError("diff", 65, "diff helper emitted invalid JSON") from error
+
+    attempts.set_diff(
+        attempt.id,
+        base_commit_sha=base_commit,
+        commit_sha=commit,
+        diff_stat=stat,
+        diff_patch=patch,
+    )
+
+
 def _transition_failure(tasks: TaskRepository, task_id: UUID, reason: str) -> None:
     try:
         task = tasks.get(task_id)
@@ -382,6 +419,14 @@ def execute_attempt(attempt_id: UUID) -> None:
                     65,
                     "worker did not emit a valid successful NIDAVELIR_RESULT payload",
                 )
+
+            _capture_git_diff(
+                client,
+                settings=settings,
+                attempt=attempt,
+                attempts=attempts,
+                environment=common_environment,
+            )
 
             push_environment = {
                 **common_environment,
