@@ -109,7 +109,8 @@ def reject_task(
     feedback: str,
 ) -> ReviewDecisionRecord:
     task, attempt = _reviewable_attempt(session, task_id)
-    if not feedback.strip():
+    feedback = feedback.strip()
+    if not feedback:
         raise ReviewConflict("rejection feedback is required")
 
     decision = ReviewRepository(session).create(
@@ -117,13 +118,21 @@ def reject_task(
         attempt_id=attempt.id,
         decision=ReviewDecision.REJECTED,
         actor=actor,
-        feedback=feedback.strip(),
+        feedback=feedback,
     )
+
+    task.description = (
+        f"{task.description.rstrip()}\n\n"
+        f"[Nidavelir review feedback for retry, attempt {attempt.number}, by {actor}]\n"
+        f"{feedback}"
+    ).strip()
+    session.commit()
+
     try:
         TaskRepository(session).transition(
             task.id,
             TaskState.NEEDS_CHANGES,
-            reason=f"attempt {attempt.number} rejected by {actor}: {feedback.strip()}",
+            reason=f"attempt {attempt.number} rejected by {actor}: {feedback}",
         )
     except InvalidTaskTransition as error:
         raise ReviewConflict(str(error)) from error
