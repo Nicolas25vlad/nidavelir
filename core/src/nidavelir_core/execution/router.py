@@ -5,6 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from nidavelir_core.database import get_session
+from nidavelir_core.settings import get_settings
 from nidavelir_core.tasks.domain import InvalidTaskTransition, TaskState
 from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
 
@@ -14,6 +15,7 @@ from .schemas import (
     AttemptDiffRead,
     AttemptLogsRead,
     AttemptRead,
+    HarnessRead,
     StartTaskRequest,
     ValidationCheckRead,
 )
@@ -35,6 +37,27 @@ def _attempt_not_found(attempt_id: UUID) -> HTTPException:
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"attempt {attempt_id} not found",
     )
+
+
+@router.get("/harnesses", response_model=list[HarnessRead])
+def list_harnesses() -> list[HarnessRead]:
+    settings = get_settings()
+    return [
+        HarnessRead(
+            id="codex",
+            display_name="OpenAI Codex CLI",
+            configured=settings.openai_api_key is not None,
+            credential_env="NIDAVELIR_OPENAI_API_KEY",
+            capabilities=["headless", "workspace-write", "git-commit"],
+        ),
+        HarnessRead(
+            id="cursor",
+            display_name="Cursor Agent CLI",
+            configured=settings.cursor_api_key is not None,
+            credential_env="NIDAVELIR_CURSOR_API_KEY",
+            capabilities=["headless", "workspace-write", "git-commit"],
+        ),
+    ]
 
 
 @router.post(

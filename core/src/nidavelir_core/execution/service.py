@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 MANAGED_LABEL = "io.nidavelir.managed"
 ATTEMPT_LABEL = "io.nidavelir.attempt_id"
+SUPPORTED_HARNESSES = frozenset({"codex", "cursor"})
 
 
 class ExecutionConfigurationError(RuntimeError):
@@ -51,6 +52,26 @@ def task_branch_name(task_id: UUID, title: str) -> str:
     return f"task/{str(task_id)[:8]}-{_slugify(title)}"
 
 
+def _validate_harness_configuration(settings: Settings, harness: str) -> None:
+    if harness not in SUPPORTED_HARNESSES:
+        supported = ", ".join(sorted(SUPPORTED_HARNESSES))
+        raise ExecutionConfigurationError(
+            f"harness {harness!r} is not installed; available harnesses: {supported}"
+        )
+    if settings.github_token is None:
+        raise ExecutionConfigurationError(
+            "NIDAVELIR_GITHUB_TOKEN is required to push task branches"
+        )
+    if harness == "codex" and settings.openai_api_key is None:
+        raise ExecutionConfigurationError(
+            "NIDAVELIR_OPENAI_API_KEY is required for the Codex harness"
+        )
+    if harness == "cursor" and settings.cursor_api_key is None:
+        raise ExecutionConfigurationError(
+            "NIDAVELIR_CURSOR_API_KEY is required for the Cursor harness"
+        )
+
+
 def enqueue_attempt(
     session: Session,
     task_id: UUID,
@@ -58,18 +79,7 @@ def enqueue_attempt(
     harness: str = "codex",
 ) -> AttemptRecord:
     settings = get_settings()
-    if harness != "codex":
-        raise ExecutionConfigurationError(
-            f"harness {harness!r} is not installed yet; the MVP currently provides 'codex'"
-        )
-    if settings.github_token is None:
-        raise ExecutionConfigurationError(
-            "NIDAVELIR_GITHUB_TOKEN is required to push task branches"
-        )
-    if settings.openai_api_key is None:
-        raise ExecutionConfigurationError(
-            "NIDAVELIR_OPENAI_API_KEY is required for the Codex harness"
-        )
+    _validate_harness_configuration(settings, harness)
 
     tasks = TaskRepository(session)
     attempts = AttemptRepository(session)
@@ -111,6 +121,19 @@ def _labels(attempt_id: UUID) -> dict[str, str]:
 
 def _secret_value(value) -> str:
     return value.get_secret_value() if value is not None else ""
+
+
+def _agent_environment(settings: Settings, attempt: AttemptRecord, task) -> dict[str, str]:
+    environment = {
+        "NIDAVELIR_TASK_JSON": _task_payload(task),
+        "NIDAVELIR_TASK_BRANCH": attempt.branch_name,
+        "NIDAVELIR_HARNESS": attempt.harness,
+    }
+    if attempt.harness == "codex":
+        environment["OPENAI_API_KEY"] = _secret_value(settings.openai_api_key)
+    elif attempt.harness == "cursor":
+        environment["CURSOR_API_KEY"] = _secret_value(settings.cursor_api_key)
+    return environment
 
 
 def _append_stage_logs(
@@ -334,7 +357,7 @@ def execute_attempt(attempt_id: UUID) -> None:
             tasks.transition(
                 task.id,
                 TaskState.RUNNING,
-                reason=f"attempt {attempt.number} started",
+                reason=f"attempt {attempt.number} started with {attempt.harness}",
             )
             client = docker.from_env()
             client.ping()
@@ -373,17 +396,11 @@ def execute_attempt(attempt_id: UUID) -> None:
                 )
                 return
 
-            agent_environment = {
-                "NIDAVELIR_TASK_JSON": _task_payload(task),
-                "NIDAVELIR_TASK_BRANCH": attempt.branch_name,
-                "NIDAVELIR_HARNESS": attempt.harness,
-                "OPENAI_API_KEY": _secret_value(settings.openai_api_key),
-            }
             exit_code, timed_out = _stream_agent(
                 client,
                 settings=settings,
                 attempt=attempt,
-                environment=agent_environment,
+                environment=_agent_environment(settings, attempt, task),
                 attempts=attempts,
             )
             result = _capture_agent_metadata(attempts, attempt.id)
@@ -451,7 +468,8 @@ def execute_attempt(attempt_id: UUID) -> None:
                 task.id,
                 TaskState.AGENT_DONE,
                 reason=(
-                    f"attempt {attempt.number} completed and pushed {attempt.branch_name}"
+                    f"attempt {attempt.number} completed with {attempt.harness} and pushed "
+                    f"{attempt.branch_name}"
                 ),
             )
 

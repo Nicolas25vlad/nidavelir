@@ -13,8 +13,8 @@ mcp = MCPServer(
     "Nidavelir",
     instructions=(
         "Control durable coding tasks and inspect disposable worker attempts. "
-        "Agent completion is not approval: validation must pass before review. "
-        "Merge is always explicit."
+        "Check available harnesses before execution when selecting an agent. "
+        "Agent completion is not approval: validation must pass before review."
     ),
 )
 
@@ -39,6 +39,12 @@ def _call(operation: str, fn: Callable[[], Any]) -> dict[str, Any]:
                 **error.as_dict(),
             },
         }
+
+
+@mcp.tool()
+def list_harnesses() -> dict[str, Any]:
+    """List installed coding harnesses, capabilities and credential readiness."""
+    return _call("list_harnesses", get_core_client().list_harnesses)
 
 
 @mcp.tool()
@@ -104,7 +110,7 @@ def update_task(
 
 @mcp.tool()
 def start_task(task_id: str, harness: str = "codex") -> dict[str, Any]:
-    """Queue a disposable coding-agent attempt for a durable task or retry a rejected task."""
+    """Queue a disposable Codex or Cursor attempt for a durable task."""
     return _call("start_task", lambda: get_core_client().start_task(task_id, harness=harness))
 
 
@@ -200,40 +206,6 @@ def get_validation_checks(
         raise CoreAPIError(422, "attempt_id or task_id is required")
 
     return _call("get_validation_checks", checks)
-
-
-@mcp.tool()
-def get_reviews(task_id: str) -> dict[str, Any]:
-    """Read durable approval/rejection history for a task."""
-    return _call("get_reviews", lambda: get_core_client().get_reviews(task_id))
-
-
-@mcp.tool()
-def approve_task(
-    task_id: str,
-    actor: str = "mcp",
-    feedback: str = "",
-) -> dict[str, Any]:
-    """Approve the latest successfully validated attempt. This does not merge it."""
-    return _call(
-        "approve_task",
-        lambda: get_core_client().approve_task(task_id, actor=actor, feedback=feedback),
-    )
-
-
-@mcp.tool()
-def reject_task(task_id: str, feedback: str, actor: str = "mcp") -> dict[str, Any]:
-    """Reject the latest validated attempt and preserve feedback for the next retry."""
-    return _call(
-        "reject_task",
-        lambda: get_core_client().reject_task(task_id, actor=actor, feedback=feedback),
-    )
-
-
-@mcp.tool()
-def merge_task(task_id: str) -> dict[str, Any]:
-    """Merge an explicitly approved task after verifying the reviewed branch SHA."""
-    return _call("merge_task", lambda: get_core_client().merge_task(task_id))
 
 
 def main() -> None:

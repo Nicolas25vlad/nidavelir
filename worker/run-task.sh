@@ -4,6 +4,7 @@ set -euo pipefail
 workspace="${NIDAVELIR_WORKSPACE:-/workspace/repo}"
 task_json="${NIDAVELIR_TASK_JSON:?NIDAVELIR_TASK_JSON is required}"
 task_branch="${NIDAVELIR_TASK_BRANCH:?NIDAVELIR_TASK_BRANCH is required}"
+harness="${NIDAVELIR_HARNESS:-codex}"
 
 cd "$workspace"
 
@@ -36,21 +37,37 @@ Constraints:
 EOF
 )"
 
-harness_version="$(codex --version | head -n 1)"
-printf 'NIDAVELIR_HARNESS_VERSION=%s\n' "$harness_version"
-
-set +e
-codex --dangerously-bypass-approvals-and-sandbox exec --json "$prompt"
-exit_code=$?
-set -e
+case "$harness" in
+  codex)
+    harness_version="$(codex --version | head -n 1)"
+    printf 'NIDAVELIR_HARNESS_VERSION=%s\n' "$harness_version"
+    set +e
+    codex --dangerously-bypass-approvals-and-sandbox exec --json "$prompt"
+    exit_code=$?
+    set -e
+    ;;
+  cursor)
+    harness_version="$(agent --version | head -n 1)"
+    printf 'NIDAVELIR_HARNESS_VERSION=%s\n' "$harness_version"
+    set +e
+    agent -p "$prompt" --output-format text --force
+    exit_code=$?
+    set -e
+    ;;
+  *)
+    printf 'Unsupported Nidavelir harness: %s\n' "$harness" >&2
+    exit 64
+    ;;
+esac
 
 if (( exit_code != 0 )); then
   jq -cn \
     --arg type "nidavelir_result" \
     --arg status "failed" \
+    --arg harness "$harness" \
     --arg branch "$task_branch" \
     --argjson exit_code "$exit_code" \
-    '{type: $type, status: $status, branch: $branch, exit_code: $exit_code}' \
+    '{type: $type, status: $status, harness: $harness, branch: $branch, exit_code: $exit_code}' \
     | sed 's/^/NIDAVELIR_RESULT=/'
   exit "$exit_code"
 fi
@@ -64,7 +81,8 @@ commit="$(git rev-parse HEAD)"
 jq -cn \
   --arg type "nidavelir_result" \
   --arg status "success" \
+  --arg harness "$harness" \
   --arg branch "$task_branch" \
   --arg commit "$commit" \
-  '{type: $type, status: $status, branch: $branch, commit: $commit}' \
+  '{type: $type, status: $status, harness: $harness, branch: $branch, commit: $commit}' \
   | sed 's/^/NIDAVELIR_RESULT=/'

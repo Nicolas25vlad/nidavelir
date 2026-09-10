@@ -19,6 +19,10 @@ RUN groupadd --gid 10001 nidavelir \
     && mkdir -p /workspace/repo \
     && chown -R nidavelir:nidavelir /workspace
 
+USER nidavelir
+RUN curl -fsSL https://cursor.com/install | bash
+USER root
+
 COPY --chown=root:root \
     entrypoint.sh \
     git-askpass.sh \
@@ -42,6 +46,7 @@ USER nidavelir
 WORKDIR /workspace/repo
 
 ENV HOME=/home/nidavelir \
+    PATH=/home/nidavelir/.local/bin:$PATH \
     NIDAVELIR_WORKSPACE=/workspace/repo
 
 ENTRYPOINT ["/usr/local/bin/nidavelir-worker"]
