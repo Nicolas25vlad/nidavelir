@@ -13,5 +13,19 @@ services:
       timeout: 5s
       retries: 10
 
+  core:
+    build:
+      context: ./core
+    environment:
+      NIDAVELIR_DATABASE_URL: postgresql+psycopg://nidavelir:nidavelir@postgres:5432/nidavelir
+      NIDAVELIR_ENV: development
+      NIDAVELIR_LOG_LEVEL: INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
 volumes:
   nidavelir-postgres:
