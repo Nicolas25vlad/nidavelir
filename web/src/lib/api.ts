@@ -1,4 +1,4 @@
-const defaultBaseUrl = "http://127.0.0.1:8000";
+const defaultBaseUrl = "/api";
 
 export type TaskState =
   | "BACKLOG"
@@ -88,12 +88,20 @@ export class ApiError extends Error {
 export class NidavelirApi {
   constructor(private readonly baseUrl = import.meta.env.VITE_NIDAVELIR_API_URL ?? defaultBaseUrl) {}
 
+  private resolveUrl(path: string): string {
+    const base = this.baseUrl.replace(/\/+$/, "");
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+    if (/^https?:\/\//.test(base)) return `${base}${normalizedPath}`;
+    const normalizedBase = base.startsWith("/") ? base : `/${base}`;
+    return `${window.location.origin}${normalizedBase}${normalizedPath}`;
+  }
+
   private async request<T>(
     method: string,
     path: string,
     options: { body?: unknown; signal?: AbortSignal } = {},
   ): Promise<T> {
-    const response = await fetch(new URL(path, this.baseUrl), {
+    const response = await fetch(this.resolveUrl(path), {
       method,
       headers: {
         Accept: "application/json",
@@ -114,9 +122,7 @@ export class NidavelirApi {
       throw new ApiError(`Nidavelir API request failed: ${response.status}`, response.status, detail);
     }
 
-    if (response.status === 204) {
-      return undefined as T;
-    }
+    if (response.status === 204) return undefined as T;
     return response.json() as Promise<T>;
   }
 
@@ -137,9 +143,7 @@ export class NidavelirApi {
   }
 
   startTask(taskId: string, harness = "codex"): Promise<Attempt> {
-    return this.request<Attempt>("POST", `/tasks/${taskId}/start`, {
-      body: { harness },
-    });
+    return this.request<Attempt>("POST", `/tasks/${taskId}/start`, { body: { harness } });
   }
 
   cancelTask(taskId: string): Promise<void> {
