@@ -36,8 +36,9 @@ app.include_router(execution_router)
 
 @app.get("/health", tags=["system"])
 def health() -> dict[str, str]:
+    current_settings = get_settings()
     return {
         "status": "ok",
         "service": "nidavelir-core",
-        "environment": settings.env,
+        "environment": current_settings.env,
     }
