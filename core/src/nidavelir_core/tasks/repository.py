@@ -56,7 +56,10 @@ class TaskRepository:
         changes = payload.model_dump(exclude_unset=True)
         for field, value in changes.items():
             if field == "validation_commands" and value is not None:
-                value = [command.model_dump() if hasattr(command, "model_dump") else command for command in value]
+                value = [
+                    command.model_dump() if hasattr(command, "model_dump") else command
+                    for command in value
+                ]
             setattr(task, field, value)
         if changes:
             task.updated_at = utcnow()
