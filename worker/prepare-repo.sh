@@ -23,7 +23,13 @@ git clone --quiet --branch "$base_branch" --single-branch "$repo_url" "$workspac
 cd "$workspace"
 git config user.name "${NIDAVELIR_GIT_AUTHOR_NAME:-Nidavelir Agent}"
 git config user.email "${NIDAVELIR_GIT_AUTHOR_EMAIL:-nidavelir@localhost}"
-git switch -c "$task_branch"
+
+if git ls-remote --exit-code --heads origin "$task_branch" >/dev/null 2>&1; then
+  git fetch --quiet origin "$task_branch:$task_branch"
+  git switch "$task_branch"
+else
+  git switch -c "$task_branch"
+fi
 
 chown -R 10001:10001 "$workspace"
 printf 'NIDAVELIR_PREPARED=%s\n' "$task_branch"
