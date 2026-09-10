@@ -11,32 +11,38 @@ The production deployment is designed to behave like an appliance. The server do
 
 ## Install
 
+Initial installation is the privileged step:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Nicolas25vlad/nidavelir/main/deploy/install.sh | sudo bash
 ```
 
-The installer creates `/opt/nidavelir`, installs the operator CLI at `/usr/local/bin/nidavelir`, generates a PostgreSQL password, and preserves an existing `.env` on repeat runs.
+The installer creates `/opt/nidavelir`, installs the operator CLI at `/usr/local/bin/nidavelir`, creates the `nidavelir` operator group, generates a PostgreSQL password, and preserves an existing `.env` on repeat runs. When invoked through `sudo`, the calling user is added to the `nidavelir` group.
+
+Open a new login session after installation so the group membership is refreshed.
+
+The installer does **not** silently add the user to Docker's privileged group. Configure either rootless Docker or explicit Docker access for the operator account according to your host policy. Membership in the traditional `docker` group is effectively high privilege on the host and should be treated accordingly.
 
 Configure runtime credentials once:
 
 ```bash
-sudo nano /opt/nidavelir/.env
+nano /opt/nidavelir/.env
 ```
 
-Set `NIDAVELIR_GITHUB_TOKEN`, then configure at least one coding harness:
+`/opt/nidavelir/.env` is owned by `root:nidavelir` and is group-writable/readable, but not world-readable.
+
+Set `NIDAVELIR_GITHUB_TOKEN`, then configure at least one coding harness. API keys remain supported, while persistent browser-login auth is being added separately:
 
 ```dotenv
-NIDAVELIR_OPENAI_API_KEY=   # Codex CLI
-NIDAVELIR_CURSOR_API_KEY=   # Cursor Agent CLI
+NIDAVELIR_OPENAI_API_KEY=   # optional Codex API-key auth
+NIDAVELIR_CURSOR_API_KEY=   # optional Cursor API-key auth
 ```
 
-You can configure either harness or both. `nidavelir doctor` reports which ones are ready.
-
-Then validate and start:
+Then validate and start without sudo:
 
 ```bash
-sudo nidavelir doctor
-sudo nidavelir update
+nidavelir doctor
+nidavelir update
 ```
 
 The default endpoints are:
@@ -47,12 +53,16 @@ The default endpoints are:
 
 ## Routine operation
 
+Normal operation is intentionally unprivileged:
+
 ```bash
-sudo nidavelir status
-sudo nidavelir logs core
-sudo nidavelir restart core
-sudo nidavelir update
+nidavelir status
+nidavelir logs core
+nidavelir restart core
+nidavelir update
 ```
+
+If those commands cannot reach Docker, `nidavelir` stops with an explicit permission error instead of retrying under sudo.
 
 `nidavelir update` pulls published GHCR images and recreates services without deleting the PostgreSQL volume or replacing `/opt/nidavelir/.env`.
 
@@ -61,8 +71,8 @@ sudo nidavelir update
 Every published build gets a `sha-<12 chars>` tag. Release tags such as `v0.1.0` are published too.
 
 ```bash
-sudo nidavelir update v0.1.0
-sudo nidavelir update sha-0123456789ab
+nidavelir update v0.1.0
+nidavelir update sha-0123456789ab
 ```
 
 If an update cannot pull or start, the CLI restores the previously configured image tag and attempts to bring that version back up.
