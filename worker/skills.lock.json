@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "id": "ponytail",
+      "repository": "https://github.com/DietrichGebert/ponytail.git",
+      "revision": "356918eba965ee1eac64bd3a7f0dd02108350de5",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "credit": "Dietrich Gebert"
+    },
+    {
+      "id": "react-frontend-skills",
+      "repository": "https://github.com/PyModel/react-frontend-skills.git",
+      "revision": "aec25a43f4c03e45865d198409f28ba9dcf9c67f",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "credit": "Mohamed Elkholy / PyModel"
+    },
+    {
+      "id": "fastapi",
+      "repository": "https://github.com/fastapi/fastapi.git",
+      "revision": "50113da16fec53b66b80d75e80a89296de4fa5a5",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "credit": "FastAPI / Sebastián Ramírez"
+    },
+    {
+      "id": "magnus-agent-skills",
+      "repository": "https://github.com/magnus919/agent-skills.git",
+      "revision": "d0edebbeab276acc6e237e2111030ce25527e455",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "credit": "Magnus Hedemark"
+    },
+    {
+      "id": "supabase-agent-skills",
+      "repository": "https://github.com/supabase/agent-skills.git",
+      "revision": "8331f910845103c08d51f6ca1d86ebb7d1f745e3",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "credit": "Supabase"
+    },
+    {
+      "id": "android-skills",
+      "repository": "https://github.com/android/skills.git",
+      "revision": "bac232fd02b0855df9275281a2a7a47643768719",
+      "license": "Apache-2.0",
+      "license_file": "LICENSE.txt",
+      "credit": "Google / Android"
+    }
+  ],
+  "skills": [
+    {"id": "ponytail", "source": "ponytail", "path": "skills/ponytail"},
+    {"id": "react", "source": "react-frontend-skills", "path": "skills/react"},
+    {"id": "typescript", "source": "react-frontend-skills", "path": "skills/typescript"},
+    {"id": "feature-arch", "source": "react-frontend-skills", "path": "skills/feature-arch"},
+    {"id": "vitest", "source": "react-frontend-skills", "path": "skills/vitest"},
+    {"id": "playwright", "source": "magnus-agent-skills", "path": "playwright"},
+    {"id": "fastapi", "source": "fastapi", "path": "fastapi/.agents/skills/fastapi"},
+    {"id": "docker-compose", "source": "magnus-agent-skills", "path": "docker-compose"},
+    {"id": "kubernetes", "source": "magnus-agent-skills", "path": "kubernetes"},
+    {"id": "postgres", "source": "supabase-agent-skills", "path": "skills/supabase-postgres-best-practices"},
+    {"id": "android-testing", "source": "android-skills", "path": "testing/testing-setup"},
+    {"id": "android-edge-to-edge", "source": "android-skills", "path": "system/edge-to-edge"}
+  ]
+}
