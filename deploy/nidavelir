@@ -37,8 +37,13 @@ require_docker_access() {
   fi
 }
 
+env_value() {
+  local key="$1"
+  awk -F= -v key="$key" '$1 == key {print substr($0, index($0, "=") + 1)}' "$ENV_FILE" | tail -n1
+}
+
 current_version() {
-  awk -F= '$1 == "NIDAVELIR_VERSION" {print substr($0, index($0, "=") + 1)}' "$ENV_FILE" | tail -n1
+  env_value NIDAVELIR_VERSION
 }
 
 set_version() {
@@ -133,6 +138,14 @@ cmd_start() {
   compose ps
 }
 
+cmd_mcp_token() {
+  require_install
+  local token
+  token="$(env_value NIDAVELIR_MCP_AUTH_TOKEN)"
+  [[ -n "$token" ]] || fatal "NIDAVELIR_MCP_AUTH_TOKEN is not configured"
+  printf '%s\n' "$token"
+}
+
 cmd_doctor() {
   require_install
 
@@ -192,6 +205,22 @@ cmd_doctor() {
     printf 'WARN: no API-key harness auth configured; browser-login auth may be configured separately\n'
   fi
 
+  local mcp_token mcp_bind mcp_resource
+  mcp_token="$(env_value NIDAVELIR_MCP_AUTH_TOKEN)"
+  mcp_bind="$(env_value NIDAVELIR_MCP_BIND_ADDRESS)"
+  mcp_resource="$(env_value NIDAVELIR_MCP_RESOURCE_URL)"
+  if [[ ${#mcp_token} -lt 32 ]]; then
+    printf 'FAILED: MCP bearer token is missing or too short\n'
+    failed=1
+  else
+    printf 'MCP auth: bearer token configured\n'
+  fi
+  if [[ -n "$mcp_bind" && "$mcp_bind" != "127.0.0.1" && "$mcp_bind" != "::1" ]]; then
+    if [[ "$mcp_resource" != https://* ]]; then
+      printf 'WARN: MCP is externally bound but its public resource URL is not HTTPS\n'
+    fi
+  fi
+
   if ! compose config --quiet; then
     printf 'FAILED: compose config\n'
     failed=1
@@ -227,8 +256,9 @@ Commands:
   restart [service]  Restart the whole stack or selected service(s)
   start              Start the stack
   stop               Stop services without deleting data
-  doctor             Validate permissions, Docker, config and harness readiness
-  version            Print configured image version
+  doctor             Validate permissions, Docker, config and security readiness
+  mcp-token           Print the MCP bearer token for explicit client configuration
+  version             Print configured image version
 
 Routine commands are intentionally unprivileged. If Docker is not accessible to
 your operator account, configure rootless Docker or appropriate Docker access
@@ -244,6 +274,7 @@ case "${1:-}" in
   start) shift; cmd_start "$@" ;;
   stop) shift; cmd_stop "$@" ;;
   doctor) shift; cmd_doctor "$@" ;;
+  mcp-token) shift; cmd_mcp_token "$@" ;;
   version) shift; cmd_version "$@" ;;
   -h|--help|help|"") usage ;;
   *) fatal "unknown command '$1' (try: nidavelir help)" ;;
