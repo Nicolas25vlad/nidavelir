@@ -4,8 +4,9 @@ from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 from nidavelir_core.database import Base
+from nidavelir_core.execution import models as execution_models  # noqa: F401
 from nidavelir_core.settings import get_settings
-from nidavelir_core.tasks import models  # noqa: F401
+from nidavelir_core.tasks import models as task_models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
