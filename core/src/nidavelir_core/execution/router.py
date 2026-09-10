@@ -10,7 +10,13 @@ from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
 
 from .models import AttemptStatus
 from .repository import AttemptNotFound, AttemptRepository
-from .schemas import AttemptDiffRead, AttemptLogsRead, AttemptRead, StartTaskRequest
+from .schemas import (
+    AttemptDiffRead,
+    AttemptLogsRead,
+    AttemptRead,
+    StartTaskRequest,
+    ValidationCheckRead,
+)
 from .service import (
     ExecutionConfigurationError,
     ExecutionConflict,
@@ -18,6 +24,7 @@ from .service import (
     enqueue_attempt,
     execute_attempt,
 )
+from .validation import ValidationRepository
 
 router = APIRouter(tags=["execution"])
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -66,6 +73,16 @@ def list_task_attempts(task_id: UUID, session: SessionDep) -> list[AttemptRead]:
     return [AttemptRead.model_validate(attempt) for attempt in attempts]
 
 
+@router.get("/tasks/{task_id}/checks", response_model=list[ValidationCheckRead])
+def list_task_checks(task_id: UUID, session: SessionDep) -> list[ValidationCheckRead]:
+    try:
+        TaskRepository(session).get(task_id)
+    except TaskNotFound as error:
+        raise HTTPException(status_code=404, detail=f"task {task_id} not found") from error
+    checks = ValidationRepository(session).list_for_task(task_id)
+    return [ValidationCheckRead.model_validate(check) for check in checks]
+
+
 @router.get("/attempts/{attempt_id}", response_model=AttemptRead)
 def get_attempt(attempt_id: UUID, session: SessionDep) -> AttemptRead:
     try:
@@ -98,6 +115,16 @@ def get_attempt_diff(attempt_id: UUID, session: SessionDep) -> AttemptDiffRead:
         stat=attempt.diff_stat or "",
         patch=attempt.diff_patch or "",
     )
+
+
+@router.get("/attempts/{attempt_id}/checks", response_model=list[ValidationCheckRead])
+def list_attempt_checks(attempt_id: UUID, session: SessionDep) -> list[ValidationCheckRead]:
+    try:
+        AttemptRepository(session).get(attempt_id)
+    except AttemptNotFound as error:
+        raise _attempt_not_found(attempt_id) from error
+    checks = ValidationRepository(session).list_for_attempt(attempt_id)
+    return [ValidationCheckRead.model_validate(check) for check in checks]
 
 
 @router.post("/tasks/{task_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)

@@ -17,6 +17,8 @@ from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
 
 from .models import AttemptRecord, AttemptStatus
 from .repository import AttemptNotFound, AttemptRepository
+from .validation import ValidationRepository
+from .validation_runner import run_validation_checks
 
 logger = logging.getLogger(__name__)
 
@@ -221,6 +223,7 @@ def _task_payload(task) -> str:
             "repository": task.repository,
             "base_branch": task.base_branch,
             "acceptance_criteria": task.acceptance_criteria,
+            "validation_commands": task.validation_commands,
             "context": "",
         }
     )
@@ -303,7 +306,7 @@ def _capture_git_diff(
 def _transition_failure(tasks: TaskRepository, task_id: UUID, reason: str) -> None:
     try:
         task = tasks.get(task_id)
-        if task.state == TaskState.RUNNING:
+        if task.state in {TaskState.RUNNING, TaskState.AGENT_DONE, TaskState.VALIDATING}:
             tasks.transition(task_id, TaskState.NEEDS_CHANGES, reason=reason)
     except (TaskNotFound, InvalidTaskTransition):
         logger.warning("could not move failed task to NEEDS_CHANGES", exc_info=True)
@@ -444,17 +447,35 @@ def execute_attempt(attempt_id: UUID) -> None:
             if push_code != 0:
                 raise WorkerStageError("push", push_code, push_logs)
 
-            attempts.finish(
-                attempt.id,
-                status=AttemptStatus.SUCCEEDED,
-                exit_code=0,
-            )
             tasks.transition(
                 task.id,
                 TaskState.AGENT_DONE,
                 reason=(
                     f"attempt {attempt.number} completed and pushed {attempt.branch_name}"
                 ),
+            )
+
+            validation_passed = run_validation_checks(
+                client,
+                settings=settings,
+                attempt=attempt,
+                task=tasks.get(task.id),
+                tasks=tasks,
+                checks=ValidationRepository(session),
+            )
+            if not validation_passed:
+                attempts.finish(
+                    attempt.id,
+                    status=AttemptStatus.FAILED,
+                    exit_code=1,
+                    failure_reason="one or more validation checks failed",
+                )
+                return
+
+            attempts.finish(
+                attempt.id,
+                status=AttemptStatus.SUCCEEDED,
+                exit_code=0,
             )
         except AttemptNotFound:
             logger.exception("attempt disappeared before execution")

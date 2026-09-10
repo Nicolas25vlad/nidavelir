@@ -23,6 +23,7 @@ class TaskRepository:
             repository=payload.repository,
             base_branch=payload.base_branch,
             acceptance_criteria=payload.acceptance_criteria,
+            validation_commands=[command.model_dump() for command in payload.validation_commands],
             state=TaskState.BACKLOG,
         )
         self.session.add(task)
