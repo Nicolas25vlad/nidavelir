@@ -72,14 +72,18 @@ def run_validation_checks(
     checks: ValidationRepository,
 ) -> bool:
     commands = list(task.validation_commands or [])
-    if not commands:
-        return True
-
     tasks.transition(
         task.id,
         TaskState.VALIDATING,
-        reason=f"running {len(commands)} validation checks for attempt {attempt.number}",
+        reason=(
+            f"running {len(commands)} validation checks for attempt {attempt.number}"
+            if commands
+            else f"no validation checks configured for attempt {attempt.number}; ready for review"
+        ),
     )
+    if not commands:
+        return True
+
     records = checks.create_checks(
         task_id=task.id,
         attempt_id=attempt.id,
