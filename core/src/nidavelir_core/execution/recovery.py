@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from nidavelir_core.database import SessionLocal
@@ -54,8 +55,16 @@ def recover_interrupted_attempts(session: Session) -> int:
 
 
 def recover_interrupted_execution() -> int:
-    with SessionLocal() as session:
-        recovered = recover_interrupted_attempts(session)
+    try:
+        with SessionLocal() as session:
+            recovered = recover_interrupted_attempts(session)
+    except SQLAlchemyError:
+        logger.warning(
+            "database unavailable during startup recovery; reconciliation skipped",
+            exc_info=True,
+        )
+        return 0
+
     if recovered:
         logger.warning("recovered %s interrupted attempt(s) after startup", recovered)
     return recovered
