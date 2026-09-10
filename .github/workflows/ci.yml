@@ -122,6 +122,9 @@ jobs:
       - name: Smoke test Codex CLI
         run: docker run --rm nidavelir-worker:ci codex --version
 
+      - name: Smoke test Cursor Agent CLI
+        run: docker run --rm nidavelir-worker:ci agent --version
+
       - name: Verify worker helpers exist
         run: |
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-prepare
