@@ -64,7 +64,9 @@ NIDAVELIR_VERSION=$VERSION
 NIDAVELIR_INSTALLATION_ID=$installation_id
 NIDAVELIR_COMPOSE_PROJECT_NAME=nidavelir-$installation_id
 NIDAVELIR_WEB_BIND_ADDRESS=127.0.0.1
+NIDAVELIR_WEB_HOST_PORT=8080
 NIDAVELIR_MCP_BIND_ADDRESS=127.0.0.1
+NIDAVELIR_MCP_HOST_PORT=8001
 NIDAVELIR_POSTGRES_PASSWORD=$postgres_password
 NIDAVELIR_DATABASE_URL=postgresql+psycopg://nidavelir:$postgres_password@postgres:5432/nidavelir
 NIDAVELIR_LOG_LEVEL=INFO
@@ -94,11 +96,20 @@ else
   if ! grep -q '^NIDAVELIR_INSTALLATION_ID=.' "$INSTALL_DIR/.env"; then
     installation_id="$(random_installation_id)"
     printf '\nNIDAVELIR_INSTALLATION_ID=%s\n' "$installation_id" >> "$INSTALL_DIR/.env"
-    printf 'NIDAVELIR_COMPOSE_PROJECT_NAME=nidavelir-%s\n' "$installation_id" >> "$INSTALL_DIR/.env"
     printf 'Added a per-installation Docker namespace to the existing configuration.\n'
-  elif ! grep -q '^NIDAVELIR_COMPOSE_PROJECT_NAME=.' "$INSTALL_DIR/.env"; then
-    installation_id="$(sed -n 's/^NIDAVELIR_INSTALLATION_ID=//p' "$INSTALL_DIR/.env" | head -n1)"
-    printf '\nNIDAVELIR_COMPOSE_PROJECT_NAME=nidavelir-%s\n' "$installation_id" >> "$INSTALL_DIR/.env"
+  fi
+  if ! grep -q '^NIDAVELIR_COMPOSE_PROJECT_NAME=.' "$INSTALL_DIR/.env"; then
+    # Legacy installs used /opt/nidavelir/compose.yaml, whose implicit Compose
+    # project name is "nidavelir". Preserve it so the existing database volume
+    # remains attached after this upgrade.
+    printf 'NIDAVELIR_COMPOSE_PROJECT_NAME=nidavelir\n' >> "$INSTALL_DIR/.env"
+    printf 'Preserved the legacy Compose project name for existing Docker data.\n'
+  fi
+  if ! grep -q '^NIDAVELIR_WEB_HOST_PORT=' "$INSTALL_DIR/.env"; then
+    printf 'NIDAVELIR_WEB_HOST_PORT=8080\n' >> "$INSTALL_DIR/.env"
+  fi
+  if ! grep -q '^NIDAVELIR_MCP_HOST_PORT=' "$INSTALL_DIR/.env"; then
+    printf 'NIDAVELIR_MCP_HOST_PORT=8001\n' >> "$INSTALL_DIR/.env"
   fi
   if ! grep -q '^NIDAVELIR_MCP_AUTH_TOKEN=.' "$INSTALL_DIR/.env"; then
     printf '\nNIDAVELIR_MCP_AUTH_TOKEN=%s\n' "$(random_hex)" >> "$INSTALL_DIR/.env"
