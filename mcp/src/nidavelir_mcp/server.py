@@ -13,7 +13,8 @@ mcp = MCPServer(
     "Nidavelir",
     instructions=(
         "Control durable coding tasks and inspect disposable worker attempts. "
-        "Agent completion is not approval: validation must pass before review, and merge is explicit."
+        "Agent completion is not approval: validation must pass before review. "
+        "Merge is always explicit."
     ),
 )
 
