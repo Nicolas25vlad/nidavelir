@@ -31,16 +31,21 @@ def session_factory() -> Iterator[sessionmaker[Session]]:
         engine.dispose()
 
 
-def _ready_attempt(session: Session):
+def _ready_attempt(session: Session, *, with_checks: bool = True):
     tasks = TaskRepository(session)
+    commands = (
+        [
+            ValidationCommand(name="tests", type="test", command="pytest -q"),
+            ValidationCommand(name="lint", type="lint", command="ruff check ."),
+        ]
+        if with_checks
+        else []
+    )
     task = tasks.create(
         TaskCreate(
             title="Validate Nidavelir",
             repository="Nicolas25vlad/nidavelir",
-            validation_commands=[
-                ValidationCommand(name="tests", type="test", command="pytest -q"),
-                ValidationCommand(name="lint", type="lint", command="ruff check ."),
-            ],
+            validation_commands=commands,
         )
     )
     task = tasks.transition(task.id, TaskState.QUEUED)
@@ -49,9 +54,9 @@ def _ready_attempt(session: Session):
     attempt = AttemptRepository(session).create(
         task_id=task.id,
         number=1,
-        container_name="validation-test-a1",
-        volume_name="validation-test-volume-a1",
-        branch_name="task/validation-test",
+        container_name=f"validation-test-{task.id}-a1",
+        volume_name=f"validation-test-{task.id}-volume-a1",
+        branch_name=f"task/{task.id}",
     )
     return tasks, task, attempt
 
@@ -79,6 +84,25 @@ def test_successful_checks_leave_task_ready_for_review(session_factory, monkeypa
         persisted = checks.list_for_attempt(attempt.id)
         assert [check.status for check in persisted] == ["PASSED", "PASSED"]
         assert all(check.output == "all good" for check in persisted)
+
+
+def test_no_checks_still_moves_task_to_review_gate(session_factory) -> None:
+    with session_factory() as session:
+        tasks, task, attempt = _ready_attempt(session, with_checks=False)
+        checks = ValidationRepository(session)
+
+        passed = run_validation_checks(
+            None,
+            settings=Settings(),
+            attempt=attempt,
+            task=task,
+            tasks=tasks,
+            checks=checks,
+        )
+
+        assert passed is True
+        assert tasks.get(task.id).state == TaskState.VALIDATING
+        assert checks.list_for_attempt(attempt.id) == []
 
 
 def test_failed_check_moves_task_to_needs_changes(session_factory, monkeypatch) -> None:
