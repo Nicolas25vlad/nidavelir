@@ -28,6 +28,7 @@ class TaskRecord(Base):
     base_branch: Mapped[str] = mapped_column(String(200), default="main")
     acceptance_criteria: Mapped[list[str]] = mapped_column(JSON, default=list)
     validation_commands: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
+    merge_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     state: Mapped[TaskState] = mapped_column(
         task_state_type, default=TaskState.BACKLOG, nullable=False
     )
