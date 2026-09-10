@@ -112,6 +112,8 @@ cmd_doctor() {
   docker compose version >/dev/null
 
   local failed=0
+  local codex_ready=0
+  local cursor_ready=0
   printf 'Install dir: %s\n' "$NIDAVELIR_HOME"
   printf 'Version: %s\n' "$(current_version)"
 
@@ -127,8 +129,22 @@ cmd_doctor() {
     failed=1
   fi
 
-  if ! grep -q '^NIDAVELIR_OPENAI_API_KEY=.' "$ENV_FILE"; then
-    printf 'MISSING: NIDAVELIR_OPENAI_API_KEY (Codex harness cannot run)\n'
+  if grep -q '^NIDAVELIR_OPENAI_API_KEY=.' "$ENV_FILE"; then
+    codex_ready=1
+    printf 'Harness: Codex configured\n'
+  else
+    printf 'Harness: Codex not configured\n'
+  fi
+
+  if grep -q '^NIDAVELIR_CURSOR_API_KEY=.' "$ENV_FILE"; then
+    cursor_ready=1
+    printf 'Harness: Cursor configured\n'
+  else
+    printf 'Harness: Cursor not configured\n'
+  fi
+
+  if [[ "$codex_ready" -eq 0 && "$cursor_ready" -eq 0 ]]; then
+    printf 'MISSING: configure at least one harness key (OpenAI or Cursor)\n'
     failed=1
   fi
 
@@ -167,7 +183,7 @@ Commands:
   restart [service]  Restart the whole stack or selected service(s)
   start              Start the stack
   stop               Stop services without deleting data
-  doctor             Validate config and runtime prerequisites
+  doctor             Validate config, harness credentials and runtime prerequisites
   version            Print configured image version
 EOF
 }
