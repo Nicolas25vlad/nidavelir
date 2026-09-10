@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+NIDAVELIR_HOME="${NIDAVELIR_HOME:-/opt/nidavelir}"
+COMPOSE_FILE="$NIDAVELIR_HOME/compose.yaml"
+ENV_FILE="$NIDAVELIR_HOME/.env"
+RAW_BASE="https://raw.githubusercontent.com/Nicolas25vlad/nidavelir/main"
+
+fatal() {
+  printf 'nidavelir: %s\n' "$*" >&2
+  exit 1
+}
+
+need() {
+  command -v "$1" >/dev/null 2>&1 || fatal "$1 is required"
+}
+
+compose() {
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+require_install() {
+  [[ -f "$COMPOSE_FILE" ]] || fatal "installation not found at $NIDAVELIR_HOME"
+  [[ -f "$ENV_FILE" ]] || fatal "missing $ENV_FILE"
+}
+
+current_version() {
+  awk -F= '$1 == "NIDAVELIR_VERSION" {print substr($0, index($0, "=") + 1)}' "$ENV_FILE" | tail -n1
+}
+
+set_version() {
+  local version="$1"
+  if grep -q '^NIDAVELIR_VERSION=' "$ENV_FILE"; then
+    sed -i "s|^NIDAVELIR_VERSION=.*|NIDAVELIR_VERSION=$version|" "$ENV_FILE"
+  else
+    printf '\nNIDAVELIR_VERSION=%s\n' "$version" >> "$ENV_FILE"
+  fi
+}
+
+cmd_update() {
+  require_install
+  need curl
+  need docker
+
+  local requested="${1:-latest}"
+  local previous
+  previous="$(current_version)"
+  [[ -n "$previous" ]] || previous="latest"
+
+  printf 'Updating Nidavelir: %s -> %s\n' "$previous" "$requested"
+
+  local tmp
+  tmp="$(mktemp)"
+  trap 'rm -f "$tmp"' RETURN
+  curl -fsSL "$RAW_BASE/deploy/compose.prod.yaml" -o "$tmp"
+  docker compose --env-file "$ENV_FILE" -f "$tmp" config --quiet
+  install -m 0644 "$tmp" "$COMPOSE_FILE"
+  set_version "$requested"
+
+  if ! compose pull; then
+    set_version "$previous"
+    fatal "image pull failed; version restored to $previous"
+  fi
+
+  if ! compose up -d --remove-orphans; then
+    printf 'Update failed, attempting rollback to %s\n' "$previous" >&2
+    set_version "$previous"
+    compose pull || true
+    compose up -d --remove-orphans || true
+    fatal "update failed and rollback was attempted"
+  fi
+
+  compose ps
+  printf 'Nidavelir is running version %s\n' "$requested"
+}
+
+cmd_status() {
+  require_install
+  compose ps
+}
+
+cmd_logs() {
+  require_install
+  local service="${1:-}"
+  if [[ -n "$service" ]]; then
+    compose logs --tail=200 -f "$service"
+  else
+    compose logs --tail=200 -f
+  fi
+}
+
+cmd_restart() {
+  require_install
+  compose restart "$@"
+  compose ps
+}
+
+cmd_stop() {
+  require_install
+  compose stop
+}
+
+cmd_start() {
+  require_install
+  compose up -d
+  compose ps
+}
+
+cmd_doctor() {
+  require_install
+  need docker
+  docker compose version >/dev/null
+
+  local failed=0
+  local codex_ready=0
+  local cursor_ready=0
+  printf 'Install dir: %s\n' "$NIDAVELIR_HOME"
+  printf 'Version: %s\n' "$(current_version)"
+
+  for key in NIDAVELIR_DATABASE_URL NIDAVELIR_POSTGRES_PASSWORD; do
+    if ! grep -q "^${key}=." "$ENV_FILE"; then
+      printf 'MISSING: %s\n' "$key"
+      failed=1
+    fi
+  done
+
+  if ! grep -q '^NIDAVELIR_GITHUB_TOKEN=.' "$ENV_FILE"; then
+    printf 'MISSING: NIDAVELIR_GITHUB_TOKEN (task branches cannot be pushed)\n'
+    failed=1
+  fi
+
+  if grep -q '^NIDAVELIR_OPENAI_API_KEY=.' "$ENV_FILE"; then
+    codex_ready=1
+    printf 'Harness: Codex configured\n'
+  else
+    printf 'Harness: Codex not configured\n'
+  fi
+
+  if grep -q '^NIDAVELIR_CURSOR_API_KEY=.' "$ENV_FILE"; then
+    cursor_ready=1
+    printf 'Harness: Cursor configured\n'
+  else
+    printf 'Harness: Cursor not configured\n'
+  fi
+
+  if [[ "$codex_ready" -eq 0 && "$cursor_ready" -eq 0 ]]; then
+    printf 'MISSING: configure at least one harness key (OpenAI or Cursor)\n'
+    failed=1
+  fi
+
+  if ! compose config --quiet; then
+    printf 'FAILED: compose config\n'
+    failed=1
+  fi
+
+  if compose ps >/dev/null 2>&1; then
+    compose ps
+  else
+    printf 'WARN: stack is not running\n'
+  fi
+
+  if [[ "$failed" -eq 0 ]]; then
+    printf 'Doctor: OK\n'
+  else
+    printf 'Doctor: configuration needs attention\n'
+    exit 1
+  fi
+}
+
+cmd_version() {
+  require_install
+  current_version
+}
+
+usage() {
+  cat <<'EOF'
+Usage: nidavelir <command> [args]
+
+Commands:
+  update [version]   Pull and deploy latest or a pinned tag/SHA image tag
+  status             Show service state
+  logs [service]     Follow logs, optionally for one service
+  restart [service]  Restart the whole stack or selected service(s)
+  start              Start the stack
+  stop               Stop services without deleting data
+  doctor             Validate config, harness credentials and runtime prerequisites
+  version            Print configured image version
+EOF
+}
+
+case "${1:-}" in
+  update) shift; cmd_update "$@" ;;
+  status) shift; cmd_status "$@" ;;
+  logs) shift; cmd_logs "$@" ;;
+  restart) shift; cmd_restart "$@" ;;
+  start) shift; cmd_start "$@" ;;
+  stop) shift; cmd_stop "$@" ;;
+  doctor) shift; cmd_doctor "$@" ;;
+  version) shift; cmd_version "$@" ;;
+  -h|--help|help|"") usage ;;
+  *) fatal "unknown command '$1' (try: nidavelir help)" ;;
+esac

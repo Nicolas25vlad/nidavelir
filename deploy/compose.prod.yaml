@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: nidavelir
+      POSTGRES_USER: nidavelir
+      POSTGRES_PASSWORD: ${NIDAVELIR_POSTGRES_PASSWORD:?set NIDAVELIR_POSTGRES_PASSWORD}
+    volumes:
+      - nidavelir-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nidavelir -d nidavelir"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  worker-image:
+    image: ghcr.io/nicolas25vlad/nidavelir-worker:${NIDAVELIR_VERSION:-latest}
+    command: ["true"]
+    restart: "no"
+
+  core:
+    image: ghcr.io/nicolas25vlad/nidavelir-core:${NIDAVELIR_VERSION:-latest}
+    environment:
+      NIDAVELIR_DATABASE_URL: ${NIDAVELIR_DATABASE_URL:?set NIDAVELIR_DATABASE_URL}
+      NIDAVELIR_ENV: production
+      NIDAVELIR_LOG_LEVEL: ${NIDAVELIR_LOG_LEVEL:-INFO}
+      NIDAVELIR_MAX_PARALLEL_WORKERS: ${NIDAVELIR_MAX_PARALLEL_WORKERS:-2}
+      NIDAVELIR_WORKER_IMAGE: ghcr.io/nicolas25vlad/nidavelir-worker:${NIDAVELIR_VERSION:-latest}
+      NIDAVELIR_WORKER_CPUS: ${NIDAVELIR_WORKER_CPUS:-1.0}
+      NIDAVELIR_WORKER_MEMORY: ${NIDAVELIR_WORKER_MEMORY:-2g}
+      NIDAVELIR_WORKER_TIMEOUT_SECONDS: ${NIDAVELIR_WORKER_TIMEOUT_SECONDS:-1800}
+      NIDAVELIR_WORKER_STOP_TIMEOUT_SECONDS: ${NIDAVELIR_WORKER_STOP_TIMEOUT_SECONDS:-10}
+      NIDAVELIR_GITHUB_TOKEN: ${NIDAVELIR_GITHUB_TOKEN:-}
+      NIDAVELIR_OPENAI_API_KEY: ${NIDAVELIR_OPENAI_API_KEY:-}
+      NIDAVELIR_CURSOR_API_KEY: ${NIDAVELIR_CURSOR_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker-image:
+        condition: service_completed_successfully
+    ports:
+      - "${NIDAVELIR_BIND_ADDRESS:-0.0.0.0}:8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
+  mcp:
+    image: ghcr.io/nicolas25vlad/nidavelir-mcp:${NIDAVELIR_VERSION:-latest}
+    environment:
+      NIDAVELIR_MCP_CORE_URL: http://core:8000
+      NIDAVELIR_MCP_TRANSPORT: streamable-http
+      NIDAVELIR_MCP_HOST: 0.0.0.0
+      NIDAVELIR_MCP_PORT: 8001
+    depends_on:
+      - core
+    ports:
+      - "${NIDAVELIR_BIND_ADDRESS:-0.0.0.0}:8001:8001"
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/nicolas25vlad/nidavelir-web:${NIDAVELIR_VERSION:-latest}
+    depends_on:
+      - core
+    ports:
+      - "${NIDAVELIR_BIND_ADDRESS:-0.0.0.0}:8080:80"
+    restart: unless-stopped
+
+volumes:
+  nidavelir-postgres:

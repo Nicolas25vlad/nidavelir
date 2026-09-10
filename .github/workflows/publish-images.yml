@@ -1,0 +1,71 @@
+name: Publish Images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: core
+            context: core
+          - component: mcp
+            context: mcp
+          - component: web
+            context: web
+          - component: worker
+            context: worker
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build image
+        env:
+          IMAGE: ghcr.io/nicolas25vlad/nidavelir-${{ matrix.component }}
+        run: docker build -t "$IMAGE:build" "${{ matrix.context }}"
+
+      - name: Tag image
+        env:
+          IMAGE: ghcr.io/nicolas25vlad/nidavelir-${{ matrix.component }}
+        run: |
+          short_sha="${GITHUB_SHA::12}"
+          docker tag "$IMAGE:build" "$IMAGE:sha-$short_sha"
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            docker tag "$IMAGE:build" "$IMAGE:latest"
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            docker tag "$IMAGE:build" "$IMAGE:${GITHUB_REF_NAME}"
+          fi
+
+      - name: Push image
+        env:
+          IMAGE: ghcr.io/nicolas25vlad/nidavelir-${{ matrix.component }}
+        run: |
+          short_sha="${GITHUB_SHA::12}"
+          docker push "$IMAGE:sha-$short_sha"
+          if [[ "$GITHUB_REF" == refs/heads/main ]]; then
+            docker push "$IMAGE:latest"
+          fi
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            docker push "$IMAGE:${GITHUB_REF_NAME}"
+          fi
