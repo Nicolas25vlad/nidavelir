@@ -49,16 +49,25 @@ def task_branch_name(task_id: UUID, title: str) -> str:
     return f"task/{str(task_id)[:8]}-{_slugify(title)}"
 
 
-def enqueue_attempt(session: Session, task_id: UUID, *, harness: str = "codex") -> AttemptRecord:
+def enqueue_attempt(
+    session: Session,
+    task_id: UUID,
+    *,
+    harness: str = "codex",
+) -> AttemptRecord:
     settings = get_settings()
     if harness != "codex":
         raise ExecutionConfigurationError(
             f"harness {harness!r} is not installed yet; the MVP currently provides 'codex'"
         )
     if settings.github_token is None:
-        raise ExecutionConfigurationError("NIDAVELIR_GITHUB_TOKEN is required to push task branches")
+        raise ExecutionConfigurationError(
+            "NIDAVELIR_GITHUB_TOKEN is required to push task branches"
+        )
     if settings.openai_api_key is None:
-        raise ExecutionConfigurationError("NIDAVELIR_OPENAI_API_KEY is required for the Codex harness")
+        raise ExecutionConfigurationError(
+            "NIDAVELIR_OPENAI_API_KEY is required for the Codex harness"
+        )
 
     tasks = TaskRepository(session)
     attempts = AttemptRepository(session)
@@ -70,7 +79,10 @@ def enqueue_attempt(session: Session, task_id: UUID, *, harness: str = "codex") 
         raise ExecutionConflict(f"task {task_id} cannot start from {task.state}")
 
     latest = attempts.latest_for_task(task_id)
-    if latest is not None and latest.status in {AttemptStatus.PREPARING, AttemptStatus.RUNNING}:
+    if latest is not None and latest.status in {
+        AttemptStatus.PREPARING,
+        AttemptStatus.RUNNING,
+    }:
         raise ExecutionConflict(f"task {task_id} already has an active attempt")
 
     number = attempts.next_number(task_id)
@@ -94,9 +106,21 @@ def _secret_value(value) -> str:
     return value.get_secret_value() if value is not None else ""
 
 
-def _append_stage_logs(attempts: AttemptRepository, attempt_id: UUID, stage: str, logs: str) -> None:
+def _append_stage_logs(
+    attempts: AttemptRepository,
+    attempt_id: UUID,
+    stage: str,
+    logs: str,
+) -> None:
     if logs:
         attempts.append_logs(attempt_id, f"\n[{stage}]\n{logs}")
+
+
+def _runtime_limits(settings: Settings) -> dict[str, object]:
+    return {
+        "mem_limit": settings.worker_memory,
+        "nano_cpus": int(settings.worker_cpus * 1_000_000_000),
+    }
 
 
 def _run_helper(
@@ -118,6 +142,7 @@ def _run_helper(
         environment=environment,
         user=user,
         volumes={attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}},
+        **_runtime_limits(settings),
     )
     try:
         result = container.wait()
@@ -146,8 +171,7 @@ def _stream_agent(
         labels=_labels(attempt.id),
         environment=environment,
         volumes={attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}},
-        mem_limit=settings.worker_memory,
-        nano_cpus=int(settings.worker_cpus * 1_000_000_000),
+        **_runtime_limits(settings),
     )
     attempts.mark_running(attempt.id)
 
@@ -168,7 +192,7 @@ def _stream_agent(
     try:
         for chunk in container.logs(stream=True, follow=True, stdout=True, stderr=True):
             buffer += chunk.decode("utf-8", errors="replace")
-            if len(buffer) >= 4096:
+            if len(buffer) >= 1024:
                 attempts.append_logs(attempt.id, buffer)
                 buffer = ""
         if buffer:
@@ -218,13 +242,24 @@ def execute_attempt(attempt_id: UUID) -> None:
             attempt = attempts.get(attempt_id)
             task = tasks.get(attempt.task_id)
             if task.state == TaskState.CANCELLED:
-                attempts.finish(attempt.id, status=AttemptStatus.CANCELLED, exit_code=None)
+                attempts.finish(
+                    attempt.id,
+                    status=AttemptStatus.CANCELLED,
+                    exit_code=None,
+                )
                 return
 
-            tasks.transition(task.id, TaskState.RUNNING, reason=f"attempt {attempt.number} started")
+            tasks.transition(
+                task.id,
+                TaskState.RUNNING,
+                reason=f"attempt {attempt.number} started",
+            )
             client = docker.from_env()
             client.ping()
-            volume = client.volumes.create(name=attempt.volume_name, labels=_labels(attempt.id))
+            volume = client.volumes.create(
+                name=attempt.volume_name,
+                labels=_labels(attempt.id),
+            )
 
             common_environment = {
                 "NIDAVELIR_REPOSITORY": task.repository,
@@ -249,7 +284,11 @@ def execute_attempt(attempt_id: UUID) -> None:
                 raise WorkerStageError("prepare", prepare_code, prepare_logs)
 
             if tasks.get(task.id).state == TaskState.CANCELLED:
-                attempts.finish(attempt.id, status=AttemptStatus.CANCELLED, exit_code=None)
+                attempts.finish(
+                    attempt.id,
+                    status=AttemptStatus.CANCELLED,
+                    exit_code=None,
+                )
                 return
 
             agent_environment = {
@@ -268,14 +307,20 @@ def execute_attempt(attempt_id: UUID) -> None:
 
             current_task = tasks.get(task.id)
             if current_task.state == TaskState.CANCELLED:
-                attempts.finish(attempt.id, status=AttemptStatus.CANCELLED, exit_code=exit_code)
+                attempts.finish(
+                    attempt.id,
+                    status=AttemptStatus.CANCELLED,
+                    exit_code=exit_code,
+                )
                 return
             if timed_out:
                 attempts.finish(
                     attempt.id,
                     status=AttemptStatus.TIMED_OUT,
                     exit_code=exit_code,
-                    failure_reason=f"worker exceeded {settings.worker_timeout_seconds}s timeout",
+                    failure_reason=(
+                        f"worker exceeded {settings.worker_timeout_seconds}s timeout"
+                    ),
                 )
                 _transition_failure(tasks, task.id, "worker timed out")
                 return
@@ -290,9 +335,16 @@ def execute_attempt(attempt_id: UUID) -> None:
                 return
 
             logs = attempts.get(attempt.id).logs
-            version_match = re.search(r"^NIDAVELIR_HARNESS_VERSION=(.+)$", logs, re.MULTILINE)
+            version_match = re.search(
+                r"^NIDAVELIR_HARNESS_VERSION=(.+)$",
+                logs,
+                re.MULTILINE,
+            )
             if version_match:
-                attempts.set_harness_version(attempt.id, version_match.group(1).strip())
+                attempts.set_harness_version(
+                    attempt.id,
+                    version_match.group(1).strip(),
+                )
 
             push_environment = {
                 **common_environment,
@@ -310,20 +362,28 @@ def execute_attempt(attempt_id: UUID) -> None:
             if push_code != 0:
                 raise WorkerStageError("push", push_code, push_logs)
 
-            attempts.finish(attempt.id, status=AttemptStatus.SUCCEEDED, exit_code=0)
+            attempts.finish(
+                attempt.id,
+                status=AttemptStatus.SUCCEEDED,
+                exit_code=0,
+            )
             tasks.transition(
                 task.id,
                 TaskState.AGENT_DONE,
-                reason=f"attempt {attempt.number} completed and pushed {attempt.branch_name}",
+                reason=(
+                    f"attempt {attempt.number} completed and pushed {attempt.branch_name}"
+                ),
             )
         except AttemptNotFound:
             logger.exception("attempt disappeared before execution")
-        except (DockerException, WorkerStageError, Exception) as error:
+        except Exception as error:
             logger.exception("attempt %s failed", attempt_id)
             try:
                 attempt = attempts.get(attempt_id)
                 if attempt.status != AttemptStatus.CANCELLED:
-                    exit_code = error.exit_code if isinstance(error, WorkerStageError) else None
+                    exit_code = (
+                        error.exit_code if isinstance(error, WorkerStageError) else None
+                    )
                     attempts.append_logs(attempt.id, f"\n[error]\n{error}\n")
                     attempts.finish(
                         attempt.id,
@@ -336,7 +396,11 @@ def execute_attempt(attempt_id: UUID) -> None:
                 logger.exception("could not persist execution failure")
         finally:
             if client is not None:
-                _cleanup_attempt_resources(client, attempt_id, volume_name=getattr(volume, "name", None))
+                _cleanup_attempt_resources(
+                    client,
+                    attempt_id,
+                    volume_name=getattr(volume, "name", None),
+                )
                 try:
                     client.close()
                 except DockerException:
@@ -344,6 +408,7 @@ def execute_attempt(attempt_id: UUID) -> None:
 
 
 def cancel_attempt_resources(attempt_id: UUID) -> None:
+    client = None
     try:
         client = docker.from_env()
         containers = client.containers.list(
@@ -359,12 +424,26 @@ def cancel_attempt_resources(attempt_id: UUID) -> None:
                 container.remove(force=True)
             except (APIError, NotFound):
                 pass
-        client.close()
     except DockerException:
-        logger.warning("could not cancel Docker resources for attempt %s", attempt_id, exc_info=True)
+        logger.warning(
+            "could not cancel Docker resources for attempt %s",
+            attempt_id,
+            exc_info=True,
+        )
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except DockerException:
+                logger.debug("failed to close Docker client", exc_info=True)
 
 
-def _cleanup_attempt_resources(client, attempt_id: UUID, *, volume_name: str | None) -> None:
+def _cleanup_attempt_resources(
+    client,
+    attempt_id: UUID,
+    *,
+    volume_name: str | None,
+) -> None:
     containers = client.containers.list(
         all=True,
         filters={"label": f"{ATTEMPT_LABEL}={attempt_id}"},
@@ -383,19 +462,32 @@ def _cleanup_attempt_resources(client, attempt_id: UUID, *, volume_name: str | N
 
 
 def cleanup_orphaned_resources() -> None:
+    client = None
     try:
         client = docker.from_env()
-        for container in client.containers.list(all=True, filters={"label": f"{MANAGED_LABEL}=true"}):
+        containers = client.containers.list(
+            all=True,
+            filters={"label": f"{MANAGED_LABEL}=true"},
+        )
+        for container in containers:
             if container.status != "running":
                 try:
                     container.remove(force=True)
                 except (APIError, NotFound):
                     pass
-        for volume in client.volumes.list(filters={"label": f"{MANAGED_LABEL}=true"}):
+
+        for volume in client.volumes.list(
+            filters={"label": f"{MANAGED_LABEL}=true"}
+        ):
             try:
                 volume.remove()
             except APIError:
                 pass
-        client.close()
     except DockerException:
         logger.debug("Docker is unavailable; skipping orphan cleanup", exc_info=True)
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except DockerException:
+                logger.debug("failed to close Docker client", exc_info=True)
