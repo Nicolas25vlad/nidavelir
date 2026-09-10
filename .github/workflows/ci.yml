@@ -137,8 +137,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Validate compose file
+      - name: Validate development compose
         run: docker compose config --quiet
+
+      - name: Validate deployment scripts
+        run: bash -n deploy/install.sh deploy/nidavelir
+
+      - name: Validate production compose
+        env:
+          NIDAVELIR_POSTGRES_PASSWORD: test-password
+          NIDAVELIR_DATABASE_URL: postgresql+psycopg://nidavelir:test-password@postgres:5432/nidavelir
+          NIDAVELIR_GITHUB_TOKEN: test-token
+          NIDAVELIR_OPENAI_API_KEY: test-key
+        run: docker compose -f deploy/compose.prod.yaml config --quiet
 
   required:
     name: CI / required
