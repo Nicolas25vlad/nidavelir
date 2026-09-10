@@ -55,10 +55,19 @@ class TaskRepository:
         task = self.get(task_id)
         changes = payload.model_dump(exclude_unset=True)
         for field, value in changes.items():
+            if field == "validation_commands" and value is not None:
+                value = [command.model_dump() if hasattr(command, "model_dump") else command for command in value]
             setattr(task, field, value)
         if changes:
             task.updated_at = utcnow()
             self.session.commit()
+        return self.get(task_id)
+
+    def set_merge_commit(self, task_id: UUID, merge_commit_sha: str) -> TaskRecord:
+        task = self.get(task_id)
+        task.merge_commit_sha = merge_commit_sha
+        task.updated_at = utcnow()
+        self.session.commit()
         return self.get(task_id)
 
     def transition(
