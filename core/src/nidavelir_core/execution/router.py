@@ -30,7 +30,11 @@ def _attempt_not_found(attempt_id: UUID) -> HTTPException:
     )
 
 
-@router.post("/tasks/{task_id}/start", response_model=AttemptRead, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/tasks/{task_id}/start",
+    response_model=AttemptRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def start_task(
     task_id: UUID,
     payload: StartTaskRequest,
