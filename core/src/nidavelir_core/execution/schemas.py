@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,6 +23,8 @@ class AttemptRead(BaseModel):
     container_name: str
     volume_name: str
     branch_name: str
+    commit_sha: str | None
+    result: dict[str, Any] | None
     exit_code: int | None
     failure_reason: str | None
     started_at: datetime | None
