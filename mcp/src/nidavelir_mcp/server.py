@@ -13,7 +13,7 @@ mcp = MCPServer(
     "Nidavelir",
     instructions=(
         "Control durable coding tasks and inspect disposable worker attempts. "
-        "Agent completion is not approval: successful execution stops at AGENT_DONE."
+        "Agent completion is not approval: validation must pass before review."
     ),
 )
 
@@ -47,8 +47,9 @@ def create_task(
     description: str = "",
     base_branch: str = "main",
     acceptance_criteria: list[str] | None = None,
+    validation_commands: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Create a durable Nidavelir task without starting a worker."""
+    """Create a durable task with optional deterministic validation commands."""
     return _call(
         "create_task",
         lambda: get_core_client().create_task(
@@ -57,6 +58,7 @@ def create_task(
             description=description,
             base_branch=base_branch,
             acceptance_criteria=acceptance_criteria,
+            validation_commands=validation_commands,
         ),
     )
 
@@ -81,8 +83,9 @@ def update_task(
     repository: str | None = None,
     base_branch: str | None = None,
     acceptance_criteria: list[str] | None = None,
+    validation_commands: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Update mutable task fields. This never changes task state directly."""
+    """Update mutable task fields without bypassing lifecycle state."""
     changes = {
         key: value
         for key, value in {
@@ -91,6 +94,7 @@ def update_task(
             "repository": repository,
             "base_branch": base_branch,
             "acceptance_criteria": acceptance_criteria,
+            "validation_commands": validation_commands,
         }.items()
         if value is not None
     }
@@ -155,6 +159,46 @@ def get_agent_logs(
         return client.get_attempt_logs(resolved_attempt_id)
 
     return _call("get_agent_logs", logs)
+
+
+@mcp.tool()
+def get_task_diff(
+    attempt_id: str | None = None,
+    task_id: str | None = None,
+) -> dict[str, Any]:
+    """Read the durable patch captured for an attempt or a task's latest attempt."""
+
+    def diff() -> dict[str, Any]:
+        client = get_core_client()
+        resolved_attempt_id = attempt_id
+        if resolved_attempt_id is None:
+            if task_id is None:
+                raise CoreAPIError(422, "attempt_id or task_id is required")
+            attempts = client.list_attempts(task_id)
+            if not attempts:
+                return {"task_id": task_id, "attempt_id": None, "stat": "", "patch": ""}
+            resolved_attempt_id = attempts[0]["id"]
+        return client.get_attempt_diff(resolved_attempt_id)
+
+    return _call("get_task_diff", diff)
+
+
+@mcp.tool()
+def get_validation_checks(
+    attempt_id: str | None = None,
+    task_id: str | None = None,
+) -> dict[str, Any]:
+    """Read persisted validation results for an attempt or task."""
+
+    def checks() -> list[dict[str, Any]]:
+        client = get_core_client()
+        if attempt_id is not None:
+            return client.get_attempt_checks(attempt_id)
+        if task_id is not None:
+            return client.get_task_checks(task_id)
+        raise CoreAPIError(422, "attempt_id or task_id is required")
+
+    return _call("get_validation_checks", checks)
 
 
 def main() -> None:

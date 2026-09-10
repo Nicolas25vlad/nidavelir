@@ -27,6 +27,7 @@ class TaskRecord(Base):
     repository: Mapped[str] = mapped_column(String(500))
     base_branch: Mapped[str] = mapped_column(String(200), default="main")
     acceptance_criteria: Mapped[list[str]] = mapped_column(JSON, default=list)
+    validation_commands: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
     state: Mapped[TaskState] = mapped_column(
         task_state_type, default=TaskState.BACKLOG, nullable=False
     )

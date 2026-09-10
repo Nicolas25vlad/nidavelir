@@ -19,6 +19,14 @@ class AttemptStatus(StrEnum):
     TIMED_OUT = "TIMED_OUT"
 
 
+class ValidationCheckStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+    TIMED_OUT = "TIMED_OUT"
+
+
 def utcnow() -> datetime:
     return datetime.now(UTC)
 
@@ -26,6 +34,12 @@ def utcnow() -> datetime:
 attempt_status_type = Enum(
     AttemptStatus,
     name="attempt_status",
+    native_enum=False,
+    length=32,
+)
+validation_check_status_type = Enum(
+    ValidationCheckStatus,
+    name="validation_check_status",
     native_enum=False,
     length=32,
 )
@@ -63,3 +77,34 @@ class AttemptRecord(Base):
     )
 
     task = relationship("TaskRecord")
+
+
+class ValidationCheckRecord(Base):
+    __tablename__ = "validation_checks"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "position", name="uq_validation_attempt_position"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    task_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    attempt_id: Mapped[UUID] = mapped_column(
+        ForeignKey("attempts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    check_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    command: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[ValidationCheckStatus] = mapped_column(
+        validation_check_status_type,
+        default=ValidationCheckStatus.PENDING,
+        nullable=False,
+    )
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, nullable=False
+    )

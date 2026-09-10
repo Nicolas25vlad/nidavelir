@@ -71,6 +71,7 @@ class CoreClient:
         description: str = "",
         base_branch: str = "main",
         acceptance_criteria: list[str] | None = None,
+        validation_commands: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         return self._request(
             "POST",
@@ -81,6 +82,7 @@ class CoreClient:
                 "repository": repository,
                 "base_branch": base_branch,
                 "acceptance_criteria": acceptance_criteria or [],
+                "validation_commands": validation_commands or [],
             },
         )
 
@@ -107,3 +109,12 @@ class CoreClient:
 
     def get_attempt_logs(self, attempt_id: str) -> dict[str, Any]:
         return self._request("GET", f"/attempts/{attempt_id}/logs")
+
+    def get_attempt_diff(self, attempt_id: str) -> dict[str, Any]:
+        return self._request("GET", f"/attempts/{attempt_id}/diff")
+
+    def get_attempt_checks(self, attempt_id: str) -> list[dict[str, Any]]:
+        return self._request("GET", f"/attempts/{attempt_id}/checks")
+
+    def get_task_checks(self, task_id: str) -> list[dict[str, Any]]:
+        return self._request("GET", f"/tasks/{task_id}/checks")
