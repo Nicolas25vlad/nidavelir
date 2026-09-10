@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nidavelir_core.database import Base
@@ -48,6 +48,8 @@ class AttemptRecord(Base):
     container_name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     volume_name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     branch_name: Mapped[str] = mapped_column(String(240), nullable=False)
+    commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     logs: Mapped[str] = mapped_column(Text, default="", nullable=False)
     exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
