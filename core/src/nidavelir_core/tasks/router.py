@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from nidavelir_core.database import get_session
 
-from .domain import InvalidTaskTransition, allowed_transitions
+from .domain import InvalidTaskTransition, TaskState, allowed_transitions
 from .repository import TaskNotFound, TaskRepository
 from .schemas import TaskCreate, TaskRead, TaskTransitionRequest, TaskUpdate
 
@@ -83,9 +83,7 @@ def transition_task(
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def cancel_task(task_id: UUID, repo: RepoDep) -> Response:
     try:
-        repo.transition(task_id, requested=__import__(
-            "nidavelir_core.tasks.domain", fromlist=["TaskState"]
-        ).TaskState.CANCELLED, reason="cancelled through API")
+        repo.transition(task_id, TaskState.CANCELLED, reason="cancelled through API")
     except TaskNotFound as error:
         raise _not_found(task_id) from error
     except InvalidTaskTransition as error:
