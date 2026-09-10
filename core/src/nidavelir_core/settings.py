@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     worker_image: str = "nidavelir-worker:dev"
     worker_cpus: float = 1.0
     worker_memory: str = "2g"
+    worker_pids_limit: int = 256
     worker_timeout_seconds: int = 1800
     worker_stop_timeout_seconds: int = 10
 
