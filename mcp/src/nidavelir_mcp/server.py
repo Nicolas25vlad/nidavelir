@@ -13,6 +13,7 @@ mcp = MCPServer(
     "Nidavelir",
     instructions=(
         "Control durable coding tasks and inspect disposable worker attempts. "
+        "Check available harnesses before execution when selecting an agent. "
         "Agent completion is not approval: validation must pass before review. "
         "Merge is always explicit."
     ),
@@ -39,6 +40,12 @@ def _call(operation: str, fn: Callable[[], Any]) -> dict[str, Any]:
                 **error.as_dict(),
             },
         }
+
+
+@mcp.tool()
+def list_harnesses() -> dict[str, Any]:
+    """List installed coding harnesses, capabilities and credential readiness."""
+    return _call("list_harnesses", get_core_client().list_harnesses)
 
 
 @mcp.tool()
@@ -104,7 +111,7 @@ def update_task(
 
 @mcp.tool()
 def start_task(task_id: str, harness: str = "codex") -> dict[str, Any]:
-    """Queue a disposable coding-agent attempt for a durable task or retry a rejected task."""
+    """Queue a disposable Codex or Cursor attempt, including retries after rejection."""
     return _call("start_task", lambda: get_core_client().start_task(task_id, harness=harness))
 
 

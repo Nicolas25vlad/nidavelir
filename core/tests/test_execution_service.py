@@ -9,7 +9,9 @@ from nidavelir_core.database import Base
 from nidavelir_core.execution.models import AttemptStatus
 from nidavelir_core.execution.repository import AttemptRepository
 from nidavelir_core.execution.service import (
+    ExecutionConfigurationError,
     ExecutionConflict,
+    _agent_environment,
     _capture_agent_metadata,
     enqueue_attempt,
     task_branch_name,
@@ -23,6 +25,7 @@ from nidavelir_core.tasks.schemas import TaskCreate
 def session_factory(monkeypatch):
     monkeypatch.setenv("NIDAVELIR_GITHUB_TOKEN", "github-token")
     monkeypatch.setenv("NIDAVELIR_OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("NIDAVELIR_CURSOR_API_KEY", "cursor-key")
     get_settings.cache_clear()
 
     engine = create_engine(
@@ -76,6 +79,51 @@ def test_enqueue_creates_attempt_and_queues_task(session_factory) -> None:
         assert attempt.harness == "codex"
         assert persisted_task.state == "QUEUED"
         assert persisted_task.transitions[-1].to_state == "QUEUED"
+
+
+def test_cursor_attempt_is_selected_and_receives_only_cursor_credential(session_factory) -> None:
+    with session_factory() as session:
+        task = _create_task(session, "Run this task with Cursor")
+        attempt = enqueue_attempt(session, task.id, harness="cursor")
+
+        environment = _agent_environment(get_settings(), attempt, task)
+
+        assert attempt.harness == "cursor"
+        assert environment["NIDAVELIR_HARNESS"] == "cursor"
+        assert environment["CURSOR_API_KEY"] == "cursor-key"
+        assert "OPENAI_API_KEY" not in environment
+
+
+def test_codex_attempt_does_not_receive_cursor_credential(session_factory) -> None:
+    with session_factory() as session:
+        task = _create_task(session, "Run this task with Codex")
+        attempt = enqueue_attempt(session, task.id, harness="codex")
+
+        environment = _agent_environment(get_settings(), attempt, task)
+
+        assert environment["OPENAI_API_KEY"] == "openai-key"
+        assert "CURSOR_API_KEY" not in environment
+
+
+def test_unsupported_harness_fails_before_attempt_creation(session_factory) -> None:
+    with session_factory() as session:
+        task = _create_task(session, "Reject unknown harness")
+
+        with pytest.raises(ExecutionConfigurationError, match="available harnesses: codex, cursor"):
+            enqueue_attempt(session, task.id, harness="unknown")
+
+        assert AttemptRepository(session).list_for_task(task.id) == []
+
+
+def test_cursor_requires_its_own_api_key(session_factory, monkeypatch) -> None:
+    monkeypatch.delenv("NIDAVELIR_CURSOR_API_KEY", raising=False)
+    get_settings.cache_clear()
+
+    with session_factory() as session:
+        task = _create_task(session, "Cursor preflight")
+        with pytest.raises(ExecutionConfigurationError, match="NIDAVELIR_CURSOR_API_KEY"):
+            enqueue_attempt(session, task.id, harness="cursor")
+        assert AttemptRepository(session).list_for_task(task.id) == []
 
 
 def test_second_active_attempt_is_rejected(session_factory) -> None:

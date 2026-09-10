@@ -10,6 +10,14 @@ class StartTaskRequest(BaseModel):
     harness: str = Field(default="codex", min_length=1, max_length=80)
 
 
+class HarnessRead(BaseModel):
+    id: str
+    display_name: str
+    configured: bool
+    credential_env: str
+    capabilities: list[str]
+
+
 class AttemptRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

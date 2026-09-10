@@ -19,6 +19,14 @@ export interface ValidationCommand {
   timeout_seconds: number;
 }
 
+export interface Harness {
+  id: string;
+  display_name: string;
+  configured: boolean;
+  credential_env: string;
+  capabilities: string[];
+}
+
 export interface TaskTransition {
   id: number;
   from_state: TaskState;
@@ -180,6 +188,10 @@ export class NidavelirApi {
 
   get<T>(path: string, signal?: AbortSignal): Promise<T> {
     return this.request<T>("GET", path, { signal });
+  }
+
+  listHarnesses(signal?: AbortSignal): Promise<Harness[]> {
+    return this.get<Harness[]>("/harnesses", signal);
   }
 
   createTask(input: CreateTaskInput): Promise<Task> {

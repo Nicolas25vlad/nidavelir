@@ -30,6 +30,7 @@ services:
       NIDAVELIR_WORKER_IMAGE: nidavelir-worker:dev
       NIDAVELIR_GITHUB_TOKEN: ${NIDAVELIR_GITHUB_TOKEN:-}
       NIDAVELIR_OPENAI_API_KEY: ${NIDAVELIR_OPENAI_API_KEY:-}
+      NIDAVELIR_CURSOR_API_KEY: ${NIDAVELIR_CURSOR_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
