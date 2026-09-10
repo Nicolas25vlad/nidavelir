@@ -86,6 +86,9 @@ class CoreClient:
             },
         )
 
+    def list_harnesses(self) -> list[dict[str, Any]]:
+        return self._request("GET", "/harnesses")
+
     def list_tasks(self) -> list[dict[str, Any]]:
         return self._request("GET", "/tasks")
 
