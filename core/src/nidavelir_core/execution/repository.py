@@ -100,6 +100,22 @@ class AttemptRepository:
         attempt.commit_sha = str(commit) if commit else None
         self.session.commit()
 
+    def set_diff(
+        self,
+        attempt_id: UUID,
+        *,
+        base_commit_sha: str,
+        commit_sha: str,
+        diff_stat: str,
+        diff_patch: str,
+    ) -> None:
+        attempt = self.get(attempt_id)
+        attempt.base_commit_sha = base_commit_sha
+        attempt.commit_sha = commit_sha
+        attempt.diff_stat = diff_stat
+        attempt.diff_patch = diff_patch
+        self.session.commit()
+
     def append_logs(self, attempt_id: UUID, text: str) -> None:
         if not text:
             return
