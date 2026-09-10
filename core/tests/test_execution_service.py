@@ -120,3 +120,25 @@ def test_agent_result_and_commit_are_persisted(session_factory) -> None:
         assert persisted.harness_version == "codex-cli 1.2.3"
         assert persisted.commit_sha == "abc123"
         assert persisted.result == result
+
+
+def test_attempt_diff_survives_workspace_cleanup(session_factory) -> None:
+    with session_factory() as session:
+        task = _create_task(session, "Persist the task diff")
+        attempt = enqueue_attempt(session, task.id)
+        attempts = AttemptRepository(session)
+
+        attempts.set_diff(
+            attempt.id,
+            base_commit_sha="a" * 40,
+            commit_sha="b" * 40,
+            diff_stat="core/app.py | 2 ++",
+            diff_patch="diff --git a/core/app.py b/core/app.py\n+print('forge')",
+        )
+        session.expire_all()
+        persisted = attempts.get(attempt.id)
+
+        assert persisted.base_commit_sha == "a" * 40
+        assert persisted.commit_sha == "b" * 40
+        assert persisted.diff_stat == "core/app.py | 2 ++"
+        assert "+print('forge')" in (persisted.diff_patch or "")

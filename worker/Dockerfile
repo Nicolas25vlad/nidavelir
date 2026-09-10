@@ -25,6 +25,7 @@ COPY --chown=root:root \
     prepare-repo.sh \
     run-task.sh \
     push-repo.sh \
+    capture-diff.sh \
     /usr/local/lib/nidavelir-worker/
 
 RUN ln -s /usr/local/lib/nidavelir-worker/entrypoint.sh /usr/local/bin/nidavelir-worker \
@@ -32,6 +33,7 @@ RUN ln -s /usr/local/lib/nidavelir-worker/entrypoint.sh /usr/local/bin/nidavelir
     && ln -s /usr/local/lib/nidavelir-worker/prepare-repo.sh /usr/local/bin/nidavelir-prepare \
     && ln -s /usr/local/lib/nidavelir-worker/run-task.sh /usr/local/bin/nidavelir-run-task \
     && ln -s /usr/local/lib/nidavelir-worker/push-repo.sh /usr/local/bin/nidavelir-push \
+    && ln -s /usr/local/lib/nidavelir-worker/capture-diff.sh /usr/local/bin/nidavelir-capture-diff \
     && chmod 0555 /usr/local/lib/nidavelir-worker/*.sh
 
 USER nidavelir
