@@ -47,6 +47,34 @@ class TaskTransitionRead(BaseModel):
     occurred_at: datetime
 
 
+class ReviewRequest(BaseModel):
+    actor: str = Field(default="operator", min_length=1, max_length=160)
+    feedback: str = Field(default="", max_length=8000)
+
+
+class RejectRequest(BaseModel):
+    actor: str = Field(default="operator", min_length=1, max_length=160)
+    feedback: str = Field(min_length=1, max_length=8000)
+
+
+class ReviewDecisionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    task_id: UUID
+    attempt_id: UUID
+    decision: Literal["APPROVED", "REJECTED"]
+    actor: str
+    feedback: str
+    created_at: datetime
+
+
+class MergeRead(BaseModel):
+    task_id: UUID
+    state: TaskState
+    merge_commit_sha: str
+
+
 class TaskRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -57,6 +85,7 @@ class TaskRead(BaseModel):
     base_branch: str
     acceptance_criteria: list[str]
     validation_commands: list[ValidationCommand]
+    merge_commit_sha: str | None
     state: TaskState
     created_at: datetime
     updated_at: datetime
