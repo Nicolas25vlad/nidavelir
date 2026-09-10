@@ -19,8 +19,20 @@ RUN groupadd --gid 10001 nidavelir \
     && mkdir -p /workspace/repo \
     && chown -R nidavelir:nidavelir /workspace
 
-COPY --chown=root:root entrypoint.sh /usr/local/bin/nidavelir-worker
-RUN chmod 0555 /usr/local/bin/nidavelir-worker
+COPY --chown=root:root \
+    entrypoint.sh \
+    git-askpass.sh \
+    prepare-repo.sh \
+    run-task.sh \
+    push-repo.sh \
+    /usr/local/lib/nidavelir-worker/
+
+RUN ln -s /usr/local/lib/nidavelir-worker/entrypoint.sh /usr/local/bin/nidavelir-worker \
+    && ln -s /usr/local/lib/nidavelir-worker/git-askpass.sh /usr/local/bin/nidavelir-git-askpass \
+    && ln -s /usr/local/lib/nidavelir-worker/prepare-repo.sh /usr/local/bin/nidavelir-prepare \
+    && ln -s /usr/local/lib/nidavelir-worker/run-task.sh /usr/local/bin/nidavelir-run-task \
+    && ln -s /usr/local/lib/nidavelir-worker/push-repo.sh /usr/local/bin/nidavelir-push \
+    && chmod 0555 /usr/local/lib/nidavelir-worker/*.sh
 
 USER nidavelir
 WORKDIR /workspace/repo
