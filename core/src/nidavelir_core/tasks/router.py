@@ -68,8 +68,18 @@ def create_task(payload: TaskCreate, repo: RepoDep) -> TaskRead:
 
 
 @router.get("", response_model=list[TaskRead])
-def list_tasks(repo: RepoDep) -> list[TaskRead]:
-    return [TaskRead.model_validate(task) for task in repo.list()]
+def list_tasks(
+    repo: RepoDep,
+    supervisor_client: str | None = None,
+    supervisor_session_id: str | None = None,
+    project_id: str | None = None,
+) -> list[TaskRead]:
+    tasks = repo.list(
+        supervisor_client=supervisor_client,
+        supervisor_session_id=supervisor_session_id,
+        project_id=project_id,
+    )
+    return [TaskRead.model_validate(task) for task in tasks]
 
 
 @router.get("/{task_id}", response_model=TaskRead)
