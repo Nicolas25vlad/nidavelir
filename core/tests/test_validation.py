@@ -104,7 +104,10 @@ def test_no_checks_still_moves_task_to_review_gate(session_factory) -> None:
         persisted_task = tasks.get(task.id)
         assert persisted_task.state == TaskState.VALIDATING
         assert "UNVALIDATED" in (persisted_task.transitions[-1].reason or "")
-        assert checks.list_for_attempt(attempt.id) == []
+        persisted = checks.list_for_attempt(attempt.id)
+        assert len(persisted) == 1
+        assert persisted[0].name == "UNVALIDATED"
+        assert persisted[0].status == "SKIPPED"
 
 
 def test_auto_resolved_plan_is_persisted_and_executed(session_factory, monkeypatch) -> None:
@@ -167,6 +170,7 @@ def test_skipped_plan_is_visible_as_unvalidated(session_factory) -> None:
             },
         )
         attempt = attempts.get(attempt.id)
+        checks = ValidationRepository(session)
 
         passed = run_validation_checks(
             None,
@@ -174,13 +178,16 @@ def test_skipped_plan_is_visible_as_unvalidated(session_factory) -> None:
             attempt=attempt,
             task=task,
             tasks=tasks,
-            checks=ValidationRepository(session),
+            checks=checks,
         )
 
         assert passed is True
         assert attempt.validation_mode == "skipped"
         assert "no supported" in attempt.validation_reason
         assert "UNVALIDATED" in (tasks.get(task.id).transitions[-1].reason or "")
+        persisted = checks.list_for_attempt(attempt.id)
+        assert persisted[0].status == "SKIPPED"
+        assert "no supported" in persisted[0].output
 
 
 def test_failed_check_moves_task_to_needs_changes(session_factory, monkeypatch) -> None:
