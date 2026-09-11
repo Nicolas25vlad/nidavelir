@@ -1,42 +1,42 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "base_skills": ["ponytail"],
   "profiles": {
     "generic": {
       "skills": [],
-      "instructions": "Implement the requested change with the smallest clear, maintainable solution. Preserve existing architecture unless the task requires changing it."
+      "instructions": "Make the smallest correct change. Preserve existing architecture unless the task requires otherwise."
     },
     "frontend": {
-      "skills": ["react", "typescript", "feature-arch", "vitest"],
-      "instructions": "Treat this as frontend product code. Preserve the existing design system and UX conventions, keep components composable, maintain accessibility, and avoid decorative complexity or unrelated visual redesigns."
+      "skills": ["react", "typescript"],
+      "instructions": "Frontend work: preserve existing UX/design conventions, accessibility and component boundaries. Avoid unrelated redesigns."
     },
     "backend": {
-      "skills": ["fastapi", "postgres"],
-      "instructions": "Treat this as backend/application-service work. Keep API contracts explicit, validation strict, persistence boundaries clear, and failure behavior observable. Avoid unnecessary framework abstraction."
+      "skills": [],
+      "instructions": "Backend work: keep contracts explicit, validation strict and failures observable. Avoid unnecessary abstraction."
     },
     "fullstack": {
-      "skills": ["react", "typescript", "feature-arch", "fastapi", "postgres", "vitest"],
-      "instructions": "Treat this as a cross-stack change. Keep frontend and backend contracts aligned, minimize duplicated domain logic, and verify the complete user-facing path rather than each layer in isolation."
+      "skills": ["react", "typescript"],
+      "instructions": "Cross-stack work: keep frontend/backend contracts aligned and avoid duplicating domain logic."
     },
     "infra": {
-      "skills": ["docker-compose", "kubernetes"],
-      "instructions": "Treat this as infrastructure/operations work. Prefer reversible, idempotent changes, explicit resource/security boundaries, conservative defaults, and configurations that coexist safely with unrelated workloads."
+      "skills": [],
+      "instructions": "Infrastructure work: prefer reversible, idempotent changes and conservative resource/security defaults."
     },
     "testing": {
-      "skills": ["playwright", "vitest"],
-      "instructions": "Treat this as verification work. Test observable behavior and meaningful failure cases, avoid brittle implementation-detail assertions, and keep tests deterministic and useful in CI."
+      "skills": [],
+      "instructions": "Verification work: test observable behavior and meaningful failures. Keep checks deterministic and CI-friendly."
     },
     "database": {
       "skills": ["postgres"],
-      "instructions": "Treat this as database work. Preserve data, make migrations reversible where practical, consider indexes and locking, and avoid unsafe destructive operations without explicit task requirements."
+      "instructions": "Database work: preserve data, consider indexes/locking and avoid destructive operations unless explicitly required."
     },
     "android": {
-      "skills": ["android-testing", "android-edge-to-edge"],
-      "instructions": "Treat this as Android application work. Follow the repository's existing XML/Compose choice instead of forcing migration, preserve lifecycle correctness, and prefer official Android patterns over custom framework layers."
+      "skills": [],
+      "instructions": "Android work: preserve the repository's XML/Compose choice and lifecycle correctness. Prefer official Android patterns."
     },
     "docs": {
       "skills": [],
-      "instructions": "Treat this as documentation work. Keep claims aligned with the current implementation, prefer concise operational examples, and do not describe planned behavior as already shipped."
+      "instructions": "Documentation work: stay concise and describe only behavior that actually exists."
     }
   }
 }

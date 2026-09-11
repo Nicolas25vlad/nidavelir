@@ -17,6 +17,12 @@ repo_has() {
   find "$workspace" -maxdepth 4 -type f \( "$@" \) -print -quit 2>/dev/null | grep -q .
 }
 
+repo_mentions() {
+  local pattern="$1"
+  shift
+  grep -Eiq "$pattern" "$@" 2>/dev/null
+}
+
 score_frontend=0
 score_backend=0
 score_infra=0
@@ -63,7 +69,45 @@ fi
 
 base_skills="$(jq -r '.base_skills[]' "$profiles_file")"
 profile_skills="$(jq -r --arg profile "$profile" '.profiles[$profile].skills[]' "$profiles_file")"
-skills="$(printf '%s\n%s\n' "$base_skills" "$profile_skills" | sed '/^$/d' | awk '!seen[$0]++')"
+extra_skills=""
+
+add_extra_skill() {
+  extra_skills+="$1"$'\n'
+}
+
+case "$profile" in
+  frontend|fullstack)
+    [[ "$text" =~ architecture|refactor|feature[[:space:]]structure|component[[:space:]]structure ]] && add_extra_skill feature-arch
+    [[ "$text" =~ vitest|unit[[:space:]]test|frontend[[:space:]]test ]] && add_extra_skill vitest
+    ;;
+  testing)
+    [[ "$text" =~ playwright|e2e|browser ]] && add_extra_skill playwright
+    [[ "$text" =~ vitest|frontend|react|typescript ]] && add_extra_skill vitest
+    ;;
+esac
+
+if [[ "$profile" == "backend" || "$profile" == "fullstack" ]]; then
+  if [[ "$text" =~ fastapi ]] || repo_mentions 'fastapi' "$workspace/pyproject.toml" "$workspace/requirements.txt" "$workspace/requirements-dev.txt"; then
+    add_extra_skill fastapi
+  fi
+  (( score_database >= 4 )) && add_extra_skill postgres
+fi
+
+if [[ "$profile" == "infra" ]]; then
+  if [[ "$text" =~ docker[[:space:]]compose|compose\.ya?ml ]] || repo_has -name 'compose.yaml' -o -name 'compose.yml'; then
+    add_extra_skill docker-compose
+  fi
+  if [[ "$text" =~ kubernetes|k8s|helm ]] || repo_has -name 'kustomization.yaml' -o -name 'Chart.yaml'; then
+    add_extra_skill kubernetes
+  fi
+fi
+
+if [[ "$profile" == "android" ]]; then
+  [[ "$text" =~ test|testing|instrumentation ]] && add_extra_skill android-testing
+  [[ "$text" =~ edge-to-edge|edge[[:space:]]to[[:space:]]edge|system[[:space:]]bar|inset ]] && add_extra_skill android-edge-to-edge
+fi
+
+skills="$(printf '%s\n%s\n%s' "$base_skills" "$profile_skills" "$extra_skills" | sed '/^$/d' | awk '!seen[$0]++')"
 
 rm -rf "$HOME/.agents/skills" "$HOME/.codex/skills"
 mkdir -p "$HOME/.agents/skills" "$HOME/.codex/skills"

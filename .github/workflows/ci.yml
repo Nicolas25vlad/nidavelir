@@ -113,9 +113,21 @@ jobs:
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-capture-diff
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-run-check
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-resolve-profile
+      - name: Verify economical Codex defaults
+        run: |
+          docker run --rm --entrypoint /bin/bash nidavelir-worker:ci -lc '
+            test "$NIDAVELIR_CODEX_REASONING_EFFORT" = low
+            test "$NIDAVELIR_CODEX_VERBOSITY" = low
+            test "$NIDAVELIR_CODEX_TOOL_OUTPUT_TOKEN_LIMIT" = 4000
+            test "$NIDAVELIR_CODEX_PROJECT_DOC_MAX_BYTES" = 16384
+            codex -c "model_reasoning_effort=\"$NIDAVELIR_CODEX_REASONING_EFFORT\"" \
+              -c "model_verbosity=\"$NIDAVELIR_CODEX_VERBOSITY\"" \
+              -c "tool_output_token_limit=$NIDAVELIR_CODEX_TOOL_OUTPUT_TOKEN_LIMIT" \
+              -c "project_doc_max_bytes=$NIDAVELIR_CODEX_PROJECT_DOC_MAX_BYTES" --version >/dev/null
+          '
       - name: Verify pinned base skill
         run: docker run --rm --entrypoint test nidavelir-worker:ci -f /opt/nidavelir/skill-store/ponytail/SKILL.md
-      - name: Verify frontend profile isolation
+      - name: Verify frontend skill budget
         run: |
           output="$(docker run --rm \
             -e NIDAVELIR_TASK_JSON='{"title":"Fix React frontend form","description":"Update the TypeScript UI","acceptance_criteria":[]}' \
@@ -123,6 +135,17 @@ jobs:
             -lc 'mkdir -p /tmp/repo && NIDAVELIR_WORKSPACE=/tmp/repo nidavelir-resolve-profile')"
           test "$(jq -r '.profile' <<<"$output")" = "frontend"
           jq -e '.skills | index("ponytail") and index("react") and index("typescript")' <<<"$output"
+          jq -e '.skills | index("vitest") | not' <<<"$output"
+          jq -e '.skills | index("feature-arch") | not' <<<"$output"
+          jq -e '.skills | index("kubernetes") | not' <<<"$output"
+      - name: Verify infra skills are demand-loaded
+        run: |
+          output="$(docker run --rm \
+            -e NIDAVELIR_TASK_JSON='{"title":"Update Docker Compose healthcheck","description":"Change compose.yaml only","acceptance_criteria":[]}' \
+            --entrypoint /bin/bash nidavelir-worker:ci \
+            -lc 'mkdir -p /tmp/repo && NIDAVELIR_WORKSPACE=/tmp/repo nidavelir-resolve-profile')"
+          test "$(jq -r '.profile' <<<"$output")" = "infra"
+          jq -e '.skills | index("ponytail") and index("docker-compose")' <<<"$output"
           jq -e '.skills | index("kubernetes") | not' <<<"$output"
 
   compose:

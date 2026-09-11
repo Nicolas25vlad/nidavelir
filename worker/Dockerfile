@@ -55,7 +55,11 @@ ENV HOME=/home/nidavelir \
     PATH=/home/nidavelir/.local/bin:$PATH \
     NIDAVELIR_WORKSPACE=/workspace/repo \
     NIDAVELIR_PROFILES_FILE=/usr/local/lib/nidavelir-worker/profiles.json \
-    NIDAVELIR_SKILL_STORE=/opt/nidavelir/skill-store
+    NIDAVELIR_SKILL_STORE=/opt/nidavelir/skill-store \
+    NIDAVELIR_CODEX_REASONING_EFFORT=low \
+    NIDAVELIR_CODEX_VERBOSITY=low \
+    NIDAVELIR_CODEX_TOOL_OUTPUT_TOKEN_LIMIT=4000 \
+    NIDAVELIR_CODEX_PROJECT_DOC_MAX_BYTES=16384
 
 ENTRYPOINT ["/usr/local/bin/nidavelir-worker"]
 CMD ["sleep", "infinity"]
