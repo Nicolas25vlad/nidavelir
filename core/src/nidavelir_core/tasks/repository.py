@@ -24,17 +24,33 @@ class TaskRepository:
             base_branch=payload.base_branch,
             acceptance_criteria=payload.acceptance_criteria,
             validation_commands=[command.model_dump() for command in payload.validation_commands],
+            supervisor_client=payload.supervisor_client,
+            supervisor_session_id=payload.supervisor_session_id,
+            project_id=payload.project_id,
             state=TaskState.BACKLOG,
         )
         self.session.add(task)
         self.session.commit()
         return self.get(task.id)
 
-    def list(self) -> list[TaskRecord]:
+    def list(
+        self,
+        *,
+        supervisor_client: str | None = None,
+        supervisor_session_id: str | None = None,
+        project_id: str | None = None,
+    ) -> list[TaskRecord]:
+        statement = select(TaskRecord).options(selectinload(TaskRecord.transitions))
+        if supervisor_client is not None:
+            statement = statement.where(TaskRecord.supervisor_client == supervisor_client)
+        if supervisor_session_id is not None:
+            statement = statement.where(
+                TaskRecord.supervisor_session_id == supervisor_session_id
+            )
+        if project_id is not None:
+            statement = statement.where(TaskRecord.project_id == project_id)
         statement = (
-            select(TaskRecord)
-            .options(selectinload(TaskRecord.transitions))
-            .execution_options(populate_existing=True)
+            statement.execution_options(populate_existing=True)
             .order_by(TaskRecord.created_at.desc())
         )
         return list(self.session.scalars(statement).all())
