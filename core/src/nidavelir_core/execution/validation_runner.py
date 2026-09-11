@@ -98,6 +98,12 @@ def run_validation_checks(
     )
     tasks.transition(task.id, TaskState.VALIDATING, reason=transition_reason)
     if not commands:
+        if not checks.list_for_attempt(attempt.id):
+            checks.create_skipped(
+                task_id=task.id,
+                attempt_id=attempt.id,
+                reason=reason or "no validation checks configured",
+            )
         return True
 
     records = checks.create_checks(
