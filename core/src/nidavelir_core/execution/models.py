@@ -4,7 +4,17 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nidavelir_core.database import Base
@@ -64,12 +74,20 @@ class AttemptRecord(Base):
     )
     harness: Mapped[str] = mapped_column(String(80), default="codex", nullable=False)
     harness_version: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(160), nullable=True)
     container_name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     volume_name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     branch_name: Mapped[str] = mapped_column(String(240), nullable=False)
     base_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cached_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cache_write_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cache_hit_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     diff_stat: Mapped[str | None] = mapped_column(Text, nullable=True)
     diff_patch: Mapped[str | None] = mapped_column(Text, nullable=True)
     logs: Mapped[str] = mapped_column(Text, default="", nullable=False)

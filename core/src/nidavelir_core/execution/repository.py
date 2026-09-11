@@ -10,6 +10,42 @@ class AttemptNotFound(LookupError):
     pass
 
 
+def _optional_non_negative_int(value) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _apply_token_usage(attempt: AttemptRecord, usage: dict, *, model: str | None = None) -> None:
+    input_tokens = _optional_non_negative_int(usage.get("input_tokens"))
+    cached_tokens = _optional_non_negative_int(usage.get("cached_input_tokens"))
+    cache_write_tokens = _optional_non_negative_int(usage.get("cache_write_input_tokens"))
+    output_tokens = _optional_non_negative_int(usage.get("output_tokens"))
+    reasoning_tokens = _optional_non_negative_int(
+        usage.get("reasoning_output_tokens", usage.get("reasoning_tokens"))
+    )
+    total_tokens = _optional_non_negative_int(usage.get("total_tokens"))
+    if total_tokens is None and input_tokens is not None and output_tokens is not None:
+        total_tokens = input_tokens + output_tokens
+
+    attempt.input_tokens = input_tokens
+    attempt.cached_input_tokens = cached_tokens
+    attempt.cache_write_input_tokens = cache_write_tokens
+    attempt.output_tokens = output_tokens
+    attempt.reasoning_tokens = reasoning_tokens
+    attempt.total_tokens = total_tokens
+    if input_tokens and cached_tokens is not None:
+        attempt.cache_hit_ratio = min(cached_tokens / input_tokens, 1.0)
+    else:
+        attempt.cache_hit_ratio = None
+    if model:
+        attempt.model = model
+
+
 class AttemptRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -98,6 +134,16 @@ class AttemptRepository:
         attempt.result = result
         commit = result.get("commit")
         attempt.commit_sha = str(commit) if commit else None
+        model = result.get("model")
+        attempt.model = str(model) if model else attempt.model
+        usage = result.get("token_usage")
+        if isinstance(usage, dict):
+            _apply_token_usage(attempt, usage, model=attempt.model)
+        self.session.commit()
+
+    def set_token_usage(self, attempt_id: UUID, usage: dict, *, model: str | None = None) -> None:
+        attempt = self.get(attempt_id)
+        _apply_token_usage(attempt, usage, model=model)
         self.session.commit()
 
     def set_diff(
