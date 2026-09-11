@@ -18,7 +18,12 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "attempts",
-        sa.Column("validation_mode", sa.String(length=32), nullable=False, server_default="unresolved"),
+        sa.Column(
+            "validation_mode",
+            sa.String(length=32),
+            nullable=False,
+            server_default="unresolved",
+        ),
     )
     op.add_column(
         "attempts",
@@ -26,7 +31,12 @@ def upgrade() -> None:
     )
     op.add_column(
         "attempts",
-        sa.Column("resolved_validation_commands", sa.JSON(), nullable=False, server_default="[]"),
+        sa.Column(
+            "resolved_validation_commands",
+            sa.JSON(),
+            nullable=False,
+            server_default="[]",
+        ),
     )
     op.alter_column("attempts", "validation_mode", server_default=None)
     op.alter_column("attempts", "validation_reason", server_default=None)
