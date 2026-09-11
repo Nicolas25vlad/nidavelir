@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .execution.recovery import recover_interrupted_execution
 from .execution.router import router as execution_router
 from .execution.service import cleanup_orphaned_resources
 from .logging import configure_logging
@@ -15,6 +16,7 @@ from .tasks.router import router as tasks_router
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level)
+    recover_interrupted_execution()
     cleanup_orphaned_resources()
     yield
 

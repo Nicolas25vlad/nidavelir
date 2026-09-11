@@ -18,7 +18,9 @@ class TaskState(StrEnum):
 
 _ALLOWED_TRANSITIONS: dict[TaskState, frozenset[TaskState]] = {
     TaskState.BACKLOG: frozenset({TaskState.QUEUED, TaskState.CANCELLED}),
-    TaskState.QUEUED: frozenset({TaskState.RUNNING, TaskState.CANCELLED}),
+    TaskState.QUEUED: frozenset(
+        {TaskState.RUNNING, TaskState.NEEDS_CHANGES, TaskState.CANCELLED}
+    ),
     TaskState.RUNNING: frozenset(
         {TaskState.AGENT_DONE, TaskState.NEEDS_CHANGES, TaskState.CANCELLED}
     ),
