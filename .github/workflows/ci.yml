@@ -112,7 +112,26 @@ jobs:
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-push
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-capture-diff
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-run-check
+          docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-detect-validation
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-resolve-profile
+      - name: Verify validation detector
+        run: |
+          auto="$(docker run --rm --entrypoint /bin/bash nidavelir-worker:ci -lc '
+            repo=$(mktemp -d)
+            cd "$repo"
+            printf "{\"scripts\":{\"build\":\"echo built\"}}\n" > package.json
+            NIDAVELIR_WORKSPACE="$repo" nidavelir-detect-validation
+          ')"
+          test "$(jq -r '.mode' <<<"$auto")" = "auto"
+          jq -e '.commands | length == 1' <<<"$auto"
+          jq -e '.commands[0].command | contains("npm run build")' <<<"$auto"
+
+          skipped="$(docker run --rm --entrypoint /bin/bash nidavelir-worker:ci -lc '
+            repo=$(mktemp -d)
+            NIDAVELIR_WORKSPACE="$repo" nidavelir-detect-validation
+          ')"
+          test "$(jq -r '.mode' <<<"$skipped")" = "skipped"
+          jq -e '.commands | length == 0' <<<"$skipped"
       - name: Verify economical Codex defaults
         run: |
           docker run --rm --entrypoint /bin/bash nidavelir-worker:ci -lc '

@@ -35,6 +35,7 @@ class ValidationCheckStatus(StrEnum):
     PASSED = "PASSED"
     FAILED = "FAILED"
     TIMED_OUT = "TIMED_OUT"
+    SKIPPED = "SKIPPED"
 
 
 class ReviewDecision(StrEnum):
@@ -80,6 +81,11 @@ class AttemptRecord(Base):
     branch_name: Mapped[str] = mapped_column(String(240), nullable=False)
     retry_context: Mapped[str] = mapped_column(Text, default="", nullable=False)
     retry_review_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    validation_mode: Mapped[str] = mapped_column(String(32), default="unresolved", nullable=False)
+    validation_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    resolved_validation_commands: Mapped[list[dict]] = mapped_column(
+        JSON, default=list, nullable=False
+    )
     base_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
