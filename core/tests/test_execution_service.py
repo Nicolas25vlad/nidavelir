@@ -55,9 +55,7 @@ def _create_task(session: Session, title: str):
 
 def test_task_branch_name_is_stable_and_safe() -> None:
     task_id = uuid4()
-
     branch = task_branch_name(task_id, "Fix: CI / worker logs!!!")
-
     assert branch == f"task/{str(task_id)[:8]}-fix-ci-worker-logs"
 
 
@@ -70,10 +68,8 @@ def test_enqueue_creates_attempt_and_queues_task(session_factory) -> None:
                 acceptance_criteria=["worker attempt is persisted"],
             )
         )
-
         attempt = enqueue_attempt(session, task.id)
         persisted_task = TaskRepository(session).get(task.id)
-
         assert attempt.number == 1
         assert attempt.status is AttemptStatus.PREPARING
         assert attempt.harness == "codex"
@@ -85,9 +81,7 @@ def test_cursor_attempt_is_selected_and_receives_only_cursor_credential(session_
     with session_factory() as session:
         task = _create_task(session, "Run this task with Cursor")
         attempt = enqueue_attempt(session, task.id, harness="cursor")
-
         environment = _agent_environment(get_settings(), attempt, task)
-
         assert attempt.harness == "cursor"
         assert environment["NIDAVELIR_HARNESS"] == "cursor"
         assert environment["CURSOR_API_KEY"] == "cursor-key"
@@ -98,9 +92,7 @@ def test_codex_attempt_does_not_receive_cursor_credential(session_factory) -> No
     with session_factory() as session:
         task = _create_task(session, "Run this task with Codex")
         attempt = enqueue_attempt(session, task.id, harness="codex")
-
         environment = _agent_environment(get_settings(), attempt, task)
-
         assert environment["OPENAI_API_KEY"] == "openai-key"
         assert "CURSOR_API_KEY" not in environment
 
@@ -108,17 +100,14 @@ def test_codex_attempt_does_not_receive_cursor_credential(session_factory) -> No
 def test_unsupported_harness_fails_before_attempt_creation(session_factory) -> None:
     with session_factory() as session:
         task = _create_task(session, "Reject unknown harness")
-
         with pytest.raises(ExecutionConfigurationError, match="available harnesses: codex, cursor"):
             enqueue_attempt(session, task.id, harness="unknown")
-
         assert AttemptRepository(session).list_for_task(task.id) == []
 
 
 def test_cursor_requires_its_own_api_key(session_factory, monkeypatch) -> None:
     monkeypatch.delenv("NIDAVELIR_CURSOR_API_KEY", raising=False)
     get_settings.cache_clear()
-
     with session_factory() as session:
         task = _create_task(session, "Cursor preflight")
         with pytest.raises(ExecutionConfigurationError, match="NIDAVELIR_CURSOR_API_KEY"):
@@ -130,7 +119,6 @@ def test_second_active_attempt_is_rejected(session_factory) -> None:
     with session_factory() as session:
         task = _create_task(session, "Prevent duplicate workers")
         enqueue_attempt(session, task.id)
-
         with pytest.raises(ExecutionConflict):
             enqueue_attempt(session, task.id)
 
@@ -138,12 +126,10 @@ def test_second_active_attempt_is_rejected(session_factory) -> None:
 def test_global_worker_capacity_is_enforced(session_factory, monkeypatch) -> None:
     monkeypatch.setenv("NIDAVELIR_MAX_PARALLEL_WORKERS", "1")
     get_settings.cache_clear()
-
     with session_factory() as session:
         first = _create_task(session, "First worker")
         second = _create_task(session, "Second worker")
         enqueue_attempt(session, first.id)
-
         with pytest.raises(ExecutionConflict, match="worker capacity reached"):
             enqueue_attempt(session, second.id)
 
@@ -159,10 +145,8 @@ def test_agent_result_and_commit_are_persisted(session_factory) -> None:
             'NIDAVELIR_RESULT={"type":"nidavelir_result","status":"success",'
             '"branch":"task/test","commit":"abc123"}\n',
         )
-
         result = _capture_agent_metadata(attempts, attempt.id)
         persisted = attempts.get(attempt.id)
-
         assert result is not None
         assert result["status"] == "success"
         assert persisted.harness_version == "codex-cli 1.2.3"
@@ -170,12 +154,56 @@ def test_agent_result_and_commit_are_persisted(session_factory) -> None:
         assert persisted.result == result
 
 
+def test_codex_token_usage_is_normalized_from_result(session_factory) -> None:
+    with session_factory() as session:
+        task = _create_task(session, "Persist token usage")
+        attempt = enqueue_attempt(session, task.id)
+        attempts = AttemptRepository(session)
+        attempts.set_result(
+            attempt.id,
+            {
+                "status": "success",
+                "model": "gpt-test",
+                "token_usage": {
+                    "input_tokens": 1000,
+                    "cached_input_tokens": 600,
+                    "cache_write_input_tokens": 100,
+                    "output_tokens": 120,
+                    "reasoning_output_tokens": 40,
+                    "total_tokens": 1120,
+                },
+            },
+        )
+        persisted = attempts.get(attempt.id)
+        assert persisted.model == "gpt-test"
+        assert persisted.input_tokens == 1000
+        assert persisted.cached_input_tokens == 600
+        assert persisted.output_tokens == 120
+        assert persisted.reasoning_tokens == 40
+        assert persisted.total_tokens == 1120
+        assert persisted.cache_hit_ratio == pytest.approx(0.6)
+
+
+def test_unknown_token_metrics_remain_none(session_factory) -> None:
+    with session_factory() as session:
+        task = _create_task(session, "Cursor without usage")
+        attempt = enqueue_attempt(session, task.id, harness="cursor")
+        attempts = AttemptRepository(session)
+        attempts.set_result(attempt.id, {"status": "success", "token_usage": None})
+        persisted = attempts.get(attempt.id)
+        assert persisted.input_tokens is None
+        assert persisted.cached_input_tokens is None
+        assert persisted.output_tokens is None
+        assert persisted.reasoning_tokens is None
+        assert persisted.total_tokens is None
+        assert persisted.cache_hit_ratio is None
+
+
 def test_attempt_diff_survives_workspace_cleanup(session_factory) -> None:
     with session_factory() as session:
         task = _create_task(session, "Persist the task diff")
         attempt = enqueue_attempt(session, task.id)
         attempts = AttemptRepository(session)
-
         attempts.set_diff(
             attempt.id,
             base_commit_sha="a" * 40,
@@ -185,7 +213,6 @@ def test_attempt_diff_survives_workspace_cleanup(session_factory) -> None:
         )
         session.expire_all()
         persisted = attempts.get(attempt.id)
-
         assert persisted.base_commit_sha == "a" * 40
         assert persisted.commit_sha == "b" * 40
         assert persisted.diff_stat == "core/app.py | 2 ++"
