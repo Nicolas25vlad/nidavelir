@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from threading import Event, Timer
 
 from docker.errors import APIError, NotFound
@@ -15,7 +16,13 @@ from .validation import ValidationRepository
 logger = logging.getLogger(__name__)
 
 MANAGED_LABEL = "io.nidavelir.managed"
+INSTALLATION_LABEL = "io.nidavelir.installation"
 ATTEMPT_LABEL = "io.nidavelir.attempt_id"
+
+
+def _installation_namespace(settings: Settings) -> str:
+    namespace = re.sub(r"[^a-z0-9]+", "-", settings.installation_id.lower()).strip("-")
+    return (namespace or "development")[:24].rstrip("-")
 
 
 def _run_check_container(
@@ -32,7 +39,11 @@ def _run_check_container(
         command=["/usr/local/bin/nidavelir-run-check"],
         name=f"{attempt.container_name}-check-{position}",
         detach=True,
-        labels={MANAGED_LABEL: "true", ATTEMPT_LABEL: str(attempt.id)},
+        labels={
+            MANAGED_LABEL: "true",
+            INSTALLATION_LABEL: _installation_namespace(settings),
+            ATTEMPT_LABEL: str(attempt.id),
+        },
         environment={"NIDAVELIR_VALIDATION_COMMAND": command},
         volumes={attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}},
         mem_limit=settings.worker_memory,
@@ -71,16 +82,21 @@ def run_validation_checks(
     tasks: TaskRepository,
     checks: ValidationRepository,
 ) -> bool:
-    commands = list(task.validation_commands or [])
-    tasks.transition(
-        task.id,
-        TaskState.VALIDATING,
-        reason=(
-            f"running {len(commands)} validation checks for attempt {attempt.number}"
-            if commands
-            else f"no validation checks configured for attempt {attempt.number}; ready for review"
-        ),
+    if attempt.validation_mode in {"configured", "auto", "skipped"}:
+        commands = list(attempt.resolved_validation_commands or [])
+        mode = attempt.validation_mode
+        reason = attempt.validation_reason
+    else:
+        commands = list(task.validation_commands or [])
+        mode = "configured" if commands else "skipped"
+        reason = "legacy attempt validation configuration"
+
+    transition_reason = (
+        f"running {len(commands)} {mode} validation checks for attempt {attempt.number}"
+        if commands
+        else f"UNVALIDATED attempt {attempt.number}: {reason or 'no validation checks configured'}"
     )
+    tasks.transition(task.id, TaskState.VALIDATING, reason=transition_reason)
     if not commands:
         return True
 
