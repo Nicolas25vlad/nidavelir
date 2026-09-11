@@ -28,11 +28,12 @@ printf 'NIDAVELIR_AGENT_SKILLS=%s\n' "$skills"
 printf 'NIDAVELIR_TOKEN_POLICY=reasoning:%s verbosity:%s tool_output:%s project_docs:%s\n' \
   "$reasoning_effort" "$model_verbosity" "$tool_output_limit" "$project_doc_max_bytes"
 
-prompt="Nidavelir coding worker. Implement the task; do not chat.\nProfile: ${profile_instructions}\n\nTask: ${title}"
+# Keep the stable policy/profile prefix before task-specific text so provider prompt caching
+# can reuse as much input as possible across workers with the same profile.
+prompt="Nidavelir coding worker. Implement; do not chat.\nProfile: ${profile_instructions}\nRules:\n- Stay on the current repo/branch; never push, merge, switch branches, or rewrite history.\n- Change only what is required. Read repo instructions/skills only when relevant.\n- Run useful checks; Nidavelir validates independently. Leave completed changes in the working tree.\n- No progress narration/reasoning recap. Final: outcome, checks, blocker if any; max 4 short lines.\n\nTask: ${title}"
 [[ -n "$description" ]] && prompt+=$'\n\n'"$description"
 [[ -n "$criteria" ]] && prompt+=$'\n\nAcceptance:\n'"$criteria"
 [[ -n "$context" ]] && prompt+=$'\n\nContext:\n'"$context"
-prompt+=$'\n\nRules:\n- Stay on the current repository/branch; never push, merge, switch branches, or rewrite history.\n- Change only what the task needs. Read repository instructions and skills only when relevant.\n- Run useful checks; Nidavelir validates independently. Leave completed changes in the working tree.\n- No routine narration or reasoning recap. Final response: outcome, checks, blocker if any, max 4 short lines.'
 
 usage_json='null'
 
