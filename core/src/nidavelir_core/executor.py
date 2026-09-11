@@ -19,7 +19,11 @@ from nidavelir_core.execution.queue import (
     renew_attempt_lease,
 )
 from nidavelir_core.execution.repository import AttemptRepository
-from nidavelir_core.execution.service import cancel_attempt_resources, execute_attempt
+from nidavelir_core.execution.service import (
+    cancel_attempt_resources,
+    cleanup_orphaned_resources,
+    execute_attempt,
+)
 from nidavelir_core.settings import get_settings
 from nidavelir_core.tasks.domain import InvalidTaskTransition, TaskState
 from nidavelir_core.tasks.repository import TaskRepository
@@ -98,6 +102,7 @@ def run() -> None:
     owner = _executor_id()
     active: dict[Future[None], UUID] = {}
     logger.info("starting Nidavelir executor %s", owner)
+    cleanup_orphaned_resources()
     _recover_stale_attempts()
 
     with ThreadPoolExecutor(
