@@ -101,8 +101,86 @@ def test_no_checks_still_moves_task_to_review_gate(session_factory) -> None:
         )
 
         assert passed is True
-        assert tasks.get(task.id).state == TaskState.VALIDATING
+        persisted_task = tasks.get(task.id)
+        assert persisted_task.state == TaskState.VALIDATING
+        assert "UNVALIDATED" in (persisted_task.transitions[-1].reason or "")
         assert checks.list_for_attempt(attempt.id) == []
+
+
+def test_auto_resolved_plan_is_persisted_and_executed(session_factory, monkeypatch) -> None:
+    with session_factory() as session:
+        tasks, task, attempt = _ready_attempt(session, with_checks=False)
+        attempts = AttemptRepository(session)
+        attempts.set_result(
+            attempt.id,
+            {
+                "status": "success",
+                "validation_plan": {
+                    "mode": "auto",
+                    "reason": "Node build detected",
+                    "commands": [
+                        {
+                            "name": "node build",
+                            "type": "build",
+                            "command": "npm run build",
+                            "timeout_seconds": 300,
+                        }
+                    ],
+                },
+            },
+        )
+        attempt = attempts.get(attempt.id)
+        monkeypatch.setattr(
+            "nidavelir_core.execution.validation_runner._run_check_container",
+            lambda *args, **kwargs: (0, "built", False),
+        )
+        checks = ValidationRepository(session)
+
+        passed = run_validation_checks(
+            None,
+            settings=Settings(),
+            attempt=attempt,
+            task=task,
+            tasks=tasks,
+            checks=checks,
+        )
+
+        assert passed is True
+        assert attempt.validation_mode == "auto"
+        assert attempt.resolved_validation_commands[0]["command"] == "npm run build"
+        assert checks.list_for_attempt(attempt.id)[0].status == "PASSED"
+
+
+def test_skipped_plan_is_visible_as_unvalidated(session_factory) -> None:
+    with session_factory() as session:
+        tasks, task, attempt = _ready_attempt(session, with_checks=False)
+        attempts = AttemptRepository(session)
+        attempts.set_result(
+            attempt.id,
+            {
+                "status": "success",
+                "validation_plan": {
+                    "mode": "skipped",
+                    "reason": "no supported safe validation checks detected",
+                    "commands": [],
+                },
+            },
+        )
+        attempt = attempts.get(attempt.id)
+
+        passed = run_validation_checks(
+            None,
+            settings=Settings(),
+            attempt=attempt,
+            task=task,
+            tasks=tasks,
+            checks=ValidationRepository(session),
+        )
+
+        assert passed is True
+        assert attempt.validation_mode == "skipped"
+        assert "no supported" in attempt.validation_reason
+        assert "UNVALIDATED" in (tasks.get(task.id).transitions[-1].reason or "")
 
 
 def test_failed_check_moves_task_to_needs_changes(session_factory, monkeypatch) -> None:
