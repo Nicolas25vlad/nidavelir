@@ -38,9 +38,6 @@ def upgrade() -> None:
             server_default="[]",
         ),
     )
-    op.alter_column("attempts", "validation_mode", server_default=None)
-    op.alter_column("attempts", "validation_reason", server_default=None)
-    op.alter_column("attempts", "resolved_validation_commands", server_default=None)
 
 
 def downgrade() -> None:
