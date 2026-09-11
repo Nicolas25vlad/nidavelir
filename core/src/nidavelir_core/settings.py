@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     worker_timeout_seconds: int = 1800
     worker_stop_timeout_seconds: int = 10
 
+    executor_poll_seconds: float = 1.0
+    executor_lease_seconds: int = 45
+    executor_heartbeat_seconds: int = 10
+
     github_token: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     cursor_api_key: SecretStr | None = None
