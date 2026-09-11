@@ -31,6 +31,8 @@ class AttemptRead(BaseModel):
     container_name: str
     volume_name: str
     branch_name: str
+    retry_context: str
+    retry_review_ids: list[str]
     base_commit_sha: str | None
     commit_sha: str | None
     result: dict | None

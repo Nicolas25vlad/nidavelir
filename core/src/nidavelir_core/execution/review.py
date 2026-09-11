@@ -11,6 +11,8 @@ from nidavelir_core.tasks.repository import TaskRepository
 from .models import AttemptStatus, ReviewDecision, ReviewDecisionRecord
 from .repository import AttemptRepository
 
+MAX_RETRY_CONTEXT_CHARS = 4000
+
 
 class ReviewConflict(RuntimeError):
     pass
@@ -90,6 +92,9 @@ def approve_task(
         actor=actor,
         feedback=feedback,
     )
+    task.retry_context = ""
+    task.retry_review_ids = []
+    session.commit()
     try:
         TaskRepository(session).transition(
             task.id,
@@ -121,11 +126,11 @@ def reject_task(
         feedback=feedback,
     )
 
-    task.description = (
-        f"{task.description.rstrip()}\n\n"
-        f"[Nidavelir review feedback for retry, attempt {attempt.number}, by {actor}]\n"
-        f"{feedback}"
-    ).strip()
+    retry_context = (
+        f"Review feedback for retry (attempt {attempt.number}, by {actor}):\n{feedback}"
+    )
+    task.retry_context = retry_context[:MAX_RETRY_CONTEXT_CHARS]
+    task.retry_review_ids = [str(decision.id)]
     session.commit()
 
     try:

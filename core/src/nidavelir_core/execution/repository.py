@@ -79,6 +79,8 @@ class AttemptRepository:
         volume_name: str,
         branch_name: str,
         harness: str = "codex",
+        retry_context: str = "",
+        retry_review_ids: list[str] | None = None,
     ) -> AttemptRecord:
         attempt = AttemptRecord(
             task_id=task_id,
@@ -87,6 +89,8 @@ class AttemptRepository:
             volume_name=volume_name,
             branch_name=branch_name,
             harness=harness,
+            retry_context=retry_context,
+            retry_review_ids=list(retry_review_ids or []),
             status=AttemptStatus.PREPARING,
         )
         self.session.add(attempt)

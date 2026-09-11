@@ -78,6 +78,8 @@ class AttemptRecord(Base):
     container_name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     volume_name: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     branch_name: Mapped[str] = mapped_column(String(240), nullable=False)
+    retry_context: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    retry_review_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     base_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)

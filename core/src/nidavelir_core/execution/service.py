@@ -120,6 +120,8 @@ def enqueue_attempt(
         volume_name=f"nidavelir-{namespace}-task-{short_id}-a{number}",
         branch_name=task_branch_name(task.id, task.title),
         harness=harness,
+        retry_context=task.retry_context,
+        retry_review_ids=task.retry_review_ids,
     )
 
 
@@ -147,7 +149,7 @@ def _secret_value(value) -> str:
 
 def _agent_environment(settings: Settings, attempt: AttemptRecord, task) -> dict[str, str]:
     environment = {
-        "NIDAVELIR_TASK_JSON": _task_payload(task),
+        "NIDAVELIR_TASK_JSON": _task_payload(task, attempt),
         "NIDAVELIR_TASK_BRANCH": attempt.branch_name,
         "NIDAVELIR_HARNESS": attempt.harness,
     }
@@ -259,7 +261,7 @@ def _stream_agent(
             logger.debug("worker container already removed", exc_info=True)
 
 
-def _task_payload(task) -> str:
+def _task_payload(task, attempt: AttemptRecord) -> str:
     return json.dumps(
         {
             "id": str(task.id),
@@ -269,7 +271,7 @@ def _task_payload(task) -> str:
             "base_branch": task.base_branch,
             "acceptance_criteria": task.acceptance_criteria,
             "validation_commands": task.validation_commands,
-            "context": "",
+            "context": attempt.retry_context,
         }
     )
 
