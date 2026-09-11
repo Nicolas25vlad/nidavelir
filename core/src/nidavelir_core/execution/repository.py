@@ -46,6 +46,16 @@ def _apply_token_usage(attempt: AttemptRecord, usage: dict, *, model: str | None
         attempt.model = model
 
 
+def _apply_validation_plan(attempt: AttemptRecord, plan: dict) -> None:
+    mode = str(plan.get("mode", "skipped"))
+    if mode not in {"configured", "auto", "skipped"}:
+        mode = "skipped"
+    commands = plan.get("commands")
+    attempt.validation_mode = mode
+    attempt.validation_reason = str(plan.get("reason", ""))
+    attempt.resolved_validation_commands = list(commands) if isinstance(commands, list) else []
+
+
 class AttemptRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -143,6 +153,9 @@ class AttemptRepository:
         usage = result.get("token_usage")
         if isinstance(usage, dict):
             _apply_token_usage(attempt, usage, model=attempt.model)
+        validation_plan = result.get("validation_plan")
+        if isinstance(validation_plan, dict):
+            _apply_validation_plan(attempt, validation_plan)
         self.session.commit()
 
     def set_token_usage(self, attempt_id: UUID, usage: dict, *, model: str | None = None) -> None:
