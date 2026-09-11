@@ -27,12 +27,20 @@ class AttemptRead(BaseModel):
     status: AttemptStatus
     harness: str
     harness_version: str | None
+    model: str | None
     container_name: str
     volume_name: str
     branch_name: str
     base_commit_sha: str | None
     commit_sha: str | None
     result: dict | None
+    input_tokens: int | None
+    cached_input_tokens: int | None
+    cache_write_input_tokens: int | None
+    output_tokens: int | None
+    reasoning_tokens: int | None
+    total_tokens: int | None
+    cache_hit_ratio: float | None
     exit_code: int | None
     failure_reason: str | None
     started_at: datetime | None
