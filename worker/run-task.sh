@@ -5,6 +5,10 @@ workspace="${NIDAVELIR_WORKSPACE:-/workspace/repo}"
 task_json="${NIDAVELIR_TASK_JSON:?NIDAVELIR_TASK_JSON is required}"
 task_branch="${NIDAVELIR_TASK_BRANCH:?NIDAVELIR_TASK_BRANCH is required}"
 harness="${NIDAVELIR_HARNESS:-codex}"
+reasoning_effort="${NIDAVELIR_CODEX_REASONING_EFFORT:-low}"
+model_verbosity="${NIDAVELIR_CODEX_VERBOSITY:-low}"
+tool_output_limit="${NIDAVELIR_CODEX_TOOL_OUTPUT_TOKEN_LIMIT:-4000}"
+project_doc_max_bytes="${NIDAVELIR_CODEX_PROJECT_DOC_MAX_BYTES:-16384}"
 
 cd "$workspace"
 
@@ -21,56 +25,52 @@ commit_title="$(printf '%s' "$title" | head -n 1 | cut -c1-72)"
 
 printf 'NIDAVELIR_AGENT_PROFILE=%s\n' "$profile"
 printf 'NIDAVELIR_AGENT_SKILLS=%s\n' "$skills"
+printf 'NIDAVELIR_TOKEN_POLICY=reasoning:%s verbosity:%s tool_output:%s project_docs:%s\n' \
+  "$reasoning_effort" "$model_verbosity" "$tool_output_limit" "$project_doc_max_bytes"
 
-prompt="$(cat <<EOF
-You are a Nidavelir disposable coding worker. Execute the task; do not act as a conversational assistant.
+prompt="Nidavelir coding worker. Implement the task; do not chat.\nProfile: ${profile_instructions}\n\nTask: ${title}"
+[[ -n "$description" ]] && prompt+=$'\n\n'"$description"
+[[ -n "$criteria" ]] && prompt+=$'\n\nAcceptance:\n'"$criteria"
+[[ -n "$context" ]] && prompt+=$'\n\nContext:\n'"$context"
+prompt+=$'\n\nRules:\n- Stay on the current repository/branch; never push, merge, switch branches, or rewrite history.\n- Change only what the task needs. Read repository instructions and skills only when relevant.\n- Run useful checks; Nidavelir validates independently. Leave completed changes in the working tree.\n- No routine narration or reasoning recap. Final response: outcome, checks, blocker if any, max 4 short lines.'
 
-Agent profile: $profile
-Profile guidance: $profile_instructions
-Available skills: ${skills:-none}
-
-Task: $title
-
-Description:
-$description
-
-Acceptance criteria:
-${criteria:-No explicit acceptance criteria were provided.}
-
-Project context:
-${context:-No additional project context was provided.}
-
-Execution rules:
-- Work only in the current repository and current branch: $task_branch
-- Do not switch branches, push, merge, or rewrite Git history.
-- Make only changes needed for this task. Preserve unrelated work.
-- Inspect relevant repository instructions and use available skills when they materially help.
-- Run relevant tests or checks when useful; Nidavelir performs independent validation afterward.
-- Leave the working tree with the completed changes. Nidavelir owns commit publication, review, and merge boundaries.
-
-Communication contract:
-- Spend tokens on implementation and tool use, not narration.
-- Do not narrate routine progress or explain private reasoning.
-- Ask no questions unless execution is genuinely impossible without missing information.
-- Keep the final response extremely short: outcome, checks run, and blocker if any. Maximum 6 short lines.
-- Do not repeat the task, summarize obvious edits, or provide tutorials.
-EOF
-)"
+usage_json='null'
 
 case "$harness" in
   codex)
     harness_version="$(codex --version | head -n 1)"
     printf 'NIDAVELIR_HARNESS_VERSION=%s\n' "$harness_version"
+    events_file="$(mktemp)"
+    trap 'rm -f "${events_file:-}"' EXIT
     set +e
-    codex --dangerously-bypass-approvals-and-sandbox exec --json "$prompt"
-    exit_code=$?
+    codex \
+      --dangerously-bypass-approvals-and-sandbox \
+      -c "model_reasoning_effort=\"$reasoning_effort\"" \
+      -c "model_verbosity=\"$model_verbosity\"" \
+      -c 'model_reasoning_summary="none"' \
+      -c "tool_output_token_limit=$tool_output_limit" \
+      -c "project_doc_max_bytes=$project_doc_max_bytes" \
+      exec --json "$prompt" | tee "$events_file"
+    exit_code=${PIPESTATUS[0]}
     set -e
+    usage_json="$(jq -s '
+      [ .[] | select(.type == "turn.completed") | .usage ]
+      | reduce .[] as $u (
+          {input_tokens:0,cached_input_tokens:0,cache_write_input_tokens:0,output_tokens:0,reasoning_output_tokens:0,total_tokens:0};
+          .input_tokens += ($u.input_tokens // 0)
+          | .cached_input_tokens += ($u.cached_input_tokens // 0)
+          | .cache_write_input_tokens += ($u.cache_write_input_tokens // 0)
+          | .output_tokens += ($u.output_tokens // 0)
+          | .reasoning_output_tokens += ($u.reasoning_output_tokens // 0)
+          | .total_tokens += (($u.input_tokens // 0) + ($u.output_tokens // 0))
+        )
+    ' "$events_file" 2>/dev/null || printf 'null')"
     ;;
   cursor)
     harness_version="$(agent --version | head -n 1)"
     printf 'NIDAVELIR_HARNESS_VERSION=%s\n' "$harness_version"
     set +e
-    agent -p "$prompt" --output-format text --force
+    agent -p "$prompt" --output-format json --force
     exit_code=$?
     set -e
     ;;
@@ -88,7 +88,8 @@ if (( exit_code != 0 )); then
     --arg profile "$profile" \
     --arg branch "$task_branch" \
     --argjson exit_code "$exit_code" \
-    '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, exit_code: $exit_code}' \
+    --argjson token_usage "$usage_json" \
+    '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, exit_code: $exit_code, token_usage: $token_usage}' \
     | sed 's/^/NIDAVELIR_RESULT=/'
   exit "$exit_code"
 fi
@@ -106,5 +107,6 @@ jq -cn \
   --arg profile "$profile" \
   --arg branch "$task_branch" \
   --arg commit "$commit" \
-  '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, commit: $commit}' \
+  --argjson token_usage "$usage_json" \
+  '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, commit: $commit, token_usage: $token_usage}' \
   | sed 's/^/NIDAVELIR_RESULT=/'
