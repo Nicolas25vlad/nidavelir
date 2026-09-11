@@ -150,6 +150,22 @@ class AttemptRepository:
         _apply_token_usage(attempt, usage, model=model)
         self.session.commit()
 
+    def set_validation_plan(
+        self,
+        attempt_id: UUID,
+        *,
+        mode: str,
+        reason: str,
+        commands: list[dict],
+    ) -> None:
+        if mode not in {"configured", "auto", "skipped"}:
+            raise ValueError(f"unsupported validation mode: {mode}")
+        attempt = self.get(attempt_id)
+        attempt.validation_mode = mode
+        attempt.validation_reason = reason
+        attempt.resolved_validation_commands = list(commands)
+        self.session.commit()
+
     def set_diff(
         self,
         attempt_id: UUID,
