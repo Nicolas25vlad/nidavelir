@@ -35,6 +35,7 @@ class ValidationCheckStatus(StrEnum):
     PASSED = "PASSED"
     FAILED = "FAILED"
     TIMED_OUT = "TIMED_OUT"
+    SKIPPED = "SKIPPED"
 
 
 class ReviewDecision(StrEnum):
