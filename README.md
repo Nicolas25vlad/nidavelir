@@ -2,13 +2,11 @@
   <img src="assets/nidavelir-logo.svg" alt="Nidavelir" width="860" />
 
   <p><strong>An MCP-native development forge for isolated, observable and verifiable autonomous coding work.</strong></p>
-  <p>Turn durable tasks into disposable coding-agent workers, review what they actually changed, and only then let the work become permanent.</p>
+  <p>Durable tasks. Disposable agents. Verified work.</p>
 
   <p>
     <a href="https://github.com/Nicolas25vlad/nidavelir/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Nicolas25vlad/nidavelir?style=flat&logo=github" /></a>
-    <a href="https://github.com/Nicolas25vlad/nidavelir/network/members"><img alt="GitHub forks" src="https://img.shields.io/github/forks/Nicolas25vlad/nidavelir?style=flat&logo=github" /></a>
     <a href="https://github.com/Nicolas25vlad/nidavelir/issues"><img alt="Open issues" src="https://img.shields.io/github/issues/Nicolas25vlad/nidavelir?style=flat&logo=github" /></a>
-    <img alt="Last commit" src="https://img.shields.io/github/last-commit/Nicolas25vlad/nidavelir?style=flat&logo=git" />
     <img alt="Project status" src="https://img.shields.io/badge/status-pre--alpha-d29922" />
     <img alt="MCP" src="https://img.shields.io/badge/control_plane-MCP-8b949e" />
     <img alt="License" src="https://img.shields.io/github/license/Nicolas25vlad/nidavelir" />
@@ -16,10 +14,10 @@
 
   <p>
     <a href="#what-is-nidavelir">Overview</a> ·
-    <a href="#architecture">Architecture</a> ·
-    <a href="#quick-start">Quick start</a> ·
-    <a href="#web-interface">Web UI</a> ·
-    <a href="#roadmap">Roadmap</a>
+    <a href="#how-it-works">Flow</a> ·
+    <a href="#agent-profiles--skills">Agents</a> ·
+    <a href="#self-hosting">Self-hosting</a> ·
+    <a href="#architecture">Architecture</a>
   </p>
 </div>
 
@@ -27,37 +25,15 @@
 
 ## What is Nidavelir?
 
-Nidavelir is a self-hosted orchestration system for running coding agents as disposable workers.
+Nidavelir is a self-hosted orchestration system for running coding agents as disposable workers while keeping tasks, logs, diffs, checks and review history durable.
 
-Its core idea is intentionally simple: **tasks are durable, agents are not.**
+Its core rule is simple: **tasks are durable, agents are not.**
 
-A task lives in Nidavelir's board and moves through a controlled lifecycle. When execution starts, Nidavelir creates an isolated Docker container, checks out the target repository into a task-specific branch, launches a coding agent such as Codex CLI, streams its progress, and keeps the environment alive until the result is independently validated.
+A coding harness may claim that its work is complete. Nidavelir does not treat that claim as approval. The resulting branch is captured, validated and reviewed before a controlled merge can make it permanent.
 
-The worker can report that it is finished. It cannot decide that the task is finished.
+> **Completion is a claim, not a fact.**
 
-<table>
-<tr>
-<td width="33%"><strong>Durable control plane</strong><br/><sub>Tasks, attempts, logs and validation history survive worker failure.</sub></td>
-<td width="33%"><strong>Disposable execution</strong><br/><sub>Every attempt runs in an isolated environment that can be destroyed and recreated.</sub></td>
-<td width="33%"><strong>Independent validation</strong><br/><sub>Agent completion is treated as a claim until checks and review accept the result.</sub></td>
-</tr>
-</table>
-
-> **Completion is a claim, not a fact.** Nidavelir separates the agent that performs work from the system that decides whether that work is acceptable.
-
-## Why?
-
-Coding agents are useful, but giving an agent a shell and hoping for the best is not an orchestration model.
-
-Nidavelir adds the missing control plane:
-
-- **persistent tasks** instead of disposable chat context;
-- **ephemeral workers** instead of long-lived agent machines;
-- **isolated execution** instead of direct host access;
-- **observable progress** instead of opaque background work;
-- **explicit validation** instead of trusting an agent's final message;
-- **branch-per-task Git workflows** instead of letting workers touch `main`;
-- **MCP as the control surface** so an external orchestrator can create, inspect, reject, retry, approve and merge work.
+Nidavelir currently supports **Codex CLI** and **Cursor Agent CLI** behind the same task lifecycle. The architecture is deliberately harness-neutral so more CLI coding agents can be added without moving orchestration policy into the worker.
 
 ## How it works
 
@@ -65,62 +41,35 @@ Nidavelir adds the missing control plane:
 create task
     │
     ▼
- persist task + acceptance criteria
+persist task + acceptance criteria
     │
     ▼
- allocate isolated worker
+choose harness + resolve agent profile
     │
     ▼
- checkout task branch + launch coding agent
+allocate isolated Docker worker
     │
     ▼
- stream logs / collect commits / capture result
+checkout task branch
     │
     ▼
- validate tests + policy + diff + acceptance criteria
+Codex / Cursor executes with curated Skills
     │
-    ├── reject ──► destroy worker ──► retry with feedback
+    ▼
+persist logs + commit + complete diff
     │
-    └── approve ─► merge ──► close task ──► destroy worker
+    ▼
+run deterministic test / lint / build checks
+    │
+    ▼
+VALIDATING
+    ├── reject + feedback ─► NEEDS_CHANGES ─► fresh attempt
+    └── approve ───────────► verify reviewed SHA ─► merge ─► CLOSED
 ```
 
-The environment is temporary. The task history is not.
-
-## Architecture
-
-```text
-┌───────────────────────────────────────────────────────────────────────┐
-│                            MCP clients                                │
-│                   ChatGPT · CLI · other agents                       │
-└───────────────────────────────┬───────────────────────────────────────┘
-                                │ MCP
-                                ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│                           Nidavelir Core                              │
-│                                                                       │
-│  API · Task Engine · Scheduler · Policy · Validation · Git · Events  │
-└──────────────┬───────────────────────────┬────────────────────────────┘
-               │                           │
-               ▼                           ▼
-      ┌──────────────────┐        ┌────────────────────────┐
-      │    PostgreSQL    │        │      Docker Engine     │
-      │ tasks / attempts │        │   worker lifecycle     │
-      │ events / checks  │        └───────────┬────────────┘
-      └──────────────────┘                    │
-                                  ┌───────────┼───────────┐
-                                  ▼           ▼           ▼
-                              Worker #42  Worker #43  Worker #44
-                              task branch task branch task branch
-                              Codex CLI   Codex CLI   Codex CLI
-```
-
-The Docker control socket belongs to Nidavelir Core. Workers should never receive `/var/run/docker.sock` or privileged host mounts.
-
-See [`docs/architecture.md`](docs/architecture.md) for the current design notes.
+The worker never receives authority to merge protected branches. Git publication and merge are separate orchestration boundaries controlled by Nidavelir Core.
 
 ## Task lifecycle
-
-Nidavelir keeps protocol and persistence states deliberately boring and machine-friendly. The Norse identity belongs in the product surface, not in state-machine cosplay.
 
 ```text
 BACKLOG → QUEUED → RUNNING → AGENT_DONE → VALIDATING
@@ -130,273 +79,229 @@ BACKLOG → QUEUED → RUNNING → AGENT_DONE → VALIDATING
                                       └──► APPROVED ──► MERGED ──► CLOSED
 ```
 
-`AGENT_DONE` means only that the worker submitted a result. Tests, policy checks, diff inspection or external review can still reject it.
+Task state, attempts, validation checks, review decisions and captured patches survive worker destruction.
 
-## Quick start
+## Agent Profiles & Skills
 
-Nidavelir is currently pre-alpha, so the bootstrap stack is not yet a complete runnable product. The intended local workflow is:
+A frontend task should not receive the same execution briefing as a database migration or Docker change. Nidavelir resolves an **Agent Profile** before launching the coding harness and exposes a curated skill bundle for that domain.
 
-```bash
-git clone https://github.com/Nicolas25vlad/nidavelir.git
-cd nidavelir
-cp .env.example .env
-docker compose up --build
-```
+Current profiles:
 
-The first executable milestone will support this path end to end:
+| Profile | Focus | Additional Skills |
+| --- | --- | --- |
+| `generic` | ordinary repository work | base bundle only |
+| `frontend` | React / TypeScript / UI | React, TypeScript, feature architecture, Vitest |
+| `backend` | APIs and services | FastAPI, PostgreSQL practices |
+| `fullstack` | cross-stack changes | frontend + backend bundle |
+| `infra` | Docker / Kubernetes / operations | Docker Compose, Kubernetes |
+| `testing` | verification and E2E | Playwright, Vitest |
+| `database` | PostgreSQL / SQL / migrations | PostgreSQL best practices |
+| `android` | Android application work | selected official Android skills |
+| `docs` | documentation | base bundle only |
+
+**Ponytail is part of the base bundle for every coding task.** Domain skills are additive. The full skill store is baked into the worker image, but only base + resolved-profile skills are placed in the harness discovery paths for a given attempt.
+
+The first profile layer resolves automatically from task wording and lightweight repository signals. If frontend and backend signals are both strong, the task resolves to `fullstack`. Persisted explicit profile overrides and immutable per-attempt profile/skill snapshots are tracked in #60.
+
+Skills are fetched during image build from exact Git commit SHAs declared in [`worker/skills.lock.json`](worker/skills.lock.json). They are not downloaded from a floating `latest` branch at task runtime. Source license texts are retained under `/opt/nidavelir/third-party/licenses` inside the worker image.
+
+### Worker communication contract
+
+Workers are executors, not chat partners. Their system briefing explicitly tells them to:
+
+- spend tokens on implementation and tools rather than narration;
+- avoid routine progress chatter and explanations of private reasoning;
+- ask questions only when execution is genuinely blocked by missing information;
+- keep the final response to at most six short lines containing outcome, checks and any blocker.
+
+Nidavelir reads durable Git state, structured results, logs and validation records. A beautiful essay from a worker has approximately zero operational value.
+
+### Third-party Skill credits
+
+Nidavelir does not claim ownership of bundled third-party Agent Skills. They remain governed by their upstream licenses and are pinned for reproducibility.
+
+| Source | Used for | Credit | License | Pinned revision |
+| --- | --- | --- | --- | --- |
+| [Ponytail](https://github.com/DietrichGebert/ponytail) | base skill for all workers | Dietrich Gebert | MIT | `356918e` |
+| [React Frontend Skills](https://github.com/PyModel/react-frontend-skills) | React, TypeScript, frontend architecture, Vitest | Mohamed Elkholy / PyModel | MIT | `aec25a4` |
+| [FastAPI](https://github.com/fastapi/fastapi) | official FastAPI agent guidance | FastAPI / Sebastián Ramírez | MIT | `50113da` |
+| [Agent Skills](https://github.com/magnus919/agent-skills) | Docker Compose, Kubernetes, Playwright | Magnus Hedemark | MIT | `d0edebb` |
+| [Supabase Agent Skills](https://github.com/supabase/agent-skills) | PostgreSQL best practices | Supabase | MIT | `8331f91` |
+| [Android Skills](https://github.com/android/skills) | official Android guidance | Google / Android | Apache-2.0 | `bac232f` |
+
+See the lockfile for exact source paths and full revisions. Third-party licenses are copied into the distributed worker image during build.
+
+## Architecture
 
 ```text
-MCP create_task
-      ↓
-PostgreSQL task
-      ↓
-Docker worker
-      ↓
-Codex CLI
-      ↓
-logs + diff + checks
-      ↓
-MCP approve_task / reject_task
+┌─────────────────────────────────────────────────────────────┐
+│                         MCP clients                         │
+│                ChatGPT · CLI · other agents                │
+└────────────────────────────┬────────────────────────────────┘
+                             │ authenticated MCP
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       Nidavelir Core                        │
+│                                                             │
+│ Task Engine · Docker · Git · Validation · Review · Policy  │
+└──────────────┬─────────────────────────────┬────────────────┘
+               │                             │
+               ▼                             ▼
+      ┌──────────────────┐          ┌────────────────────┐
+      │    PostgreSQL    │          │   Docker Engine    │
+      │ tasks / attempts │          │ worker lifecycle   │
+      │ checks / reviews │          └─────────┬──────────┘
+      └──────────────────┘                    │
+                                  ┌───────────┴───────────┐
+                                  ▼                       ▼
+                           disposable Codex        disposable Cursor
+                              worker                    worker
 ```
 
-<details>
-<summary><strong>Planned MCP surface</strong></summary>
+Core owns Docker lifecycle. Workers never receive the Docker socket. Git helpers receive the credentials needed for clone/push; coding harnesses do not receive unrelated infrastructure secrets.
 
-<br/>
+On shared Docker hosts, every Nidavelir installation gets its own installation namespace. Disposable containers and volumes are labeled with that namespace, and destructive cleanup is scoped to resources created by that installation. Nidavelir does not use global Docker prune operations.
 
-The first version is expected to expose a deliberately small toolset:
+For stronger isolation, production can point Nidavelir at a dedicated or rootless Docker daemon using `NIDAVELIR_DOCKER_SOCKET`.
+
+See [`docs/architecture.md`](docs/architecture.md) for design notes.
+
+## MCP control plane
+
+The MCP server is an adapter over Core, not a second source of truth. Current tools cover task creation and updates, execution, logs, diffs, validation results, review decisions and controlled merge.
+
+Typical surface:
 
 ```text
+list_harnesses
 create_task
 list_tasks
 get_task
 update_task
 start_task
 cancel_task
-
 get_agent_status
 get_agent_logs
 get_task_diff
-run_task_tests
-
+get_validation_checks
+get_reviews
 approve_task
 reject_task
 merge_task
 ```
 
-MCP is the control surface, not the persistence layer. Tasks, logs, attempts and validation results remain durable inside Nidavelir.
-
-</details>
-
-<details>
-<summary><strong>Worker execution model</strong></summary>
-
-<br/>
-
-Every execution attempt gets its own isolated environment:
-
-```text
-task 42
-└── attempt 3
-    ├── container: nidavelir-task-42-attempt-3
-    ├── workspace: /workspace/repo
-    ├── branch: task/42-fix-refresh-token
-    ├── agent: codex
-    └── limits: cpu / memory / timeout / network policy
-```
-
-A worker should be replaceable at any time. If an attempt crashes or produces a bad result, Nidavelir records the attempt, destroys the container and can launch a clean one with updated feedback.
-
-</details>
-
-<details>
-<summary><strong>Git model</strong></summary>
-
-<br/>
-
-Workers never push directly to the protected branch.
-
-```text
-main
- └── task/42-fix-refresh-token
-       ├── agent commits
-       ├── validation
-       ├── review
-       └── merge after approval
-```
-
-A task can therefore fail spectacularly without turning the repository into modern art.
-
-</details>
+Streamable HTTP MCP is protected by bearer authentication. Production binds Web and MCP to loopback by default; expose them remotely only behind the network controls appropriate for the server.
 
 ## Web interface
 
-The web UI is an operational cockpit, not the source of truth.
-
-The visual direction is intentionally restrained: dense information, strong hierarchy, excellent typography, fast scanning and almost no ornamental dashboard furniture.
+The Web UI is an operational cockpit over the same durable state:
 
 | View | Purpose |
 | --- | --- |
-| **Overview** | briefing of active work, blocked tasks, failed attempts and recent completions |
-| **Board** | kanban view of durable task state |
-| **Agents** | active and historical worker attempts, runtime, resources and status |
-| **Task detail** | prompt, acceptance criteria, logs, diff, checks, attempts and validation history |
+| **Overview** | active work and recent state |
+| **Board** | durable task lifecycle |
+| **Agents** | worker attempts and runtime status |
+| **Task detail** | harness, logs, diff, checks, review feedback, approve/reject and merge |
 
-The UI should answer operational questions quickly:
+The visual rule is simple: if a pixel does not help answer an operational question, it probably owes rent.
 
-```text
-What is running?
-What is blocked?
-What failed?
-What changed?
-What needs my decision?
-What can safely disappear?
+No fake analytics. No giant empty cards. No decorative dashboard sludge.
+
+## Self-hosting
+
+The production deployment is designed to behave like an appliance. A normal server does not need to keep a Git clone around.
+
+Initial installation is the privileged step:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Nicolas25vlad/nidavelir/main/deploy/install.sh | sudo bash
 ```
 
-No fake analytics. No giant empty cards. No decorative gradients pretending to be information. No AI-dashboard sludge.
+After installation, routine operation is intentionally unprivileged:
 
-<details>
-<summary><strong>Security model</strong></summary>
+```bash
+nidavelir doctor
+nidavelir update
+nidavelir status
+nidavelir logs core
+nidavelir restart core
+```
 
-<br/>
+The installer creates a per-installation Docker namespace, persistent PostgreSQL storage, random MCP authentication material and an operator group. Updates pull published GHCR images while preserving `.env` and database state.
 
-Nidavelir assumes coding agents are powerful and fallible.
+Production defaults are loopback-first:
 
-Initial constraints:
+```text
+Web  127.0.0.1:8080
+MCP  127.0.0.1:8001/mcp
+Core internal Docker network only
+```
+
+Ports, worker concurrency, CPU and memory budgets are configurable for servers that already run other workloads. See [`deploy/README.md`](deploy/README.md).
+
+## Security model
+
+Nidavelir assumes coding agents are powerful, useful and entirely capable of doing something spectacularly dumb.
+
+Important boundaries:
 
 - workers run unprivileged;
-- no Docker socket inside workers;
-- no unrestricted host filesystem mounts;
-- per-worker CPU, memory and execution limits;
-- task-scoped credentials where possible;
-- protected branches remain protected;
-- force-push to protected branches is forbidden;
-- all task transitions and worker attempts are auditable;
-- network access should be restricted by policy rather than assumed safe.
+- workers do not receive `/var/run/docker.sock`;
+- workers do not receive unrestricted host filesystem mounts;
+- task workers have CPU, memory and execution-time limits;
+- persistent Nidavelir services have configurable resource ceilings;
+- task branches are separate from protected branches;
+- merge requires explicit approval and verification that the reviewed SHA did not move;
+- MCP HTTP access requires authentication;
+- worker cleanup is scoped to the current Nidavelir installation;
+- agent completion never bypasses independent validation.
 
-Isolation is part of the product, not an optional deployment hardening step.
+Isolation is product behavior, not a deployment footnote.
 
-</details>
-
-<details>
-<summary><strong>Planned stack</strong></summary>
-
-<br/>
-
-| Layer | Direction |
-| --- | --- |
-| Orchestrator | Python + FastAPI |
-| Task state | PostgreSQL |
-| Agent protocol | MCP |
-| Worker runtime | Docker Engine |
-| Initial coding agent | Codex CLI |
-| Web UI | React + TypeScript |
-| Repository integration | Git + GitHub |
-
-The implementation is still intentionally flexible while the task model and worker lifecycle are being stabilized.
-
-</details>
-
-<details>
-<summary><strong>Repository layout</strong></summary>
-
-<br/>
+## Repository layout
 
 ```text
 nidavelir/
-├── assets/        # project identity and README assets
-├── core/          # orchestrator, task engine, scheduler, validation
-├── mcp/           # MCP server and tool definitions
-├── worker/        # disposable agent runtime image
-├── web/           # operational web interface
-├── docs/          # architecture and design notes
-└── compose.yaml   # local/self-hosted stack
+├── core/          # orchestrator, task state, Docker, Git, validation, review
+├── mcp/           # authenticated MCP adapter
+├── worker/        # disposable Codex/Cursor runtime + Agent Skills
+├── web/           # operational cockpit
+├── deploy/        # appliance-style self-hosted deployment
+├── docs/          # architecture notes
+├── assets/        # project identity
+└── compose.yaml   # development stack
 ```
-
-These directories currently describe the target architecture. The project is still in its bootstrap phase.
-
-</details>
 
 ## Roadmap
 
-<table>
-<tr>
-<td width="25%" valign="top"><strong>01 · Execute</strong><br/><sub>Persistent tasks, MCP control, one isolated Codex worker, logs and manual approval.</sub></td>
-<td width="25%" valign="top"><strong>02 · Verify</strong><br/><sub>Task branches, diffs, test gates, acceptance criteria, retry loops and controlled merge.</sub></td>
-<td width="25%" valign="top"><strong>03 · Observe</strong><br/><sub>Board, task briefing, agent runtime, live logs, checks and audit history.</sub></td>
-<td width="25%" valign="top"><strong>04 · Orchestrate</strong><br/><sub>Specialized agents, dependencies, parallel execution, QA and task decomposition.</sub></td>
-</tr>
-</table>
+The project is moving from a single-worker MVP toward reliable self-dogfooding.
 
-<details>
-<summary><strong>Detailed roadmap</strong></summary>
+**Current focus:** stable execution, persistent harness login, curated Agent Profiles/Skills, MCP bundle management, project context/wiki, and enough recovery behavior for Nidavelir to safely implement its own issues.
 
-<br/>
-
-### Phase 1 · Single-worker MVP
-
-- [ ] persistent task model;
-- [ ] MCP task creation and inspection;
-- [ ] create/destroy one Docker worker per task attempt;
-- [ ] launch Codex CLI with task context;
-- [ ] stream logs and collect exit state;
-- [ ] manual approval or rejection.
-
-### Phase 2 · Validation and Git workflow
-
-- [ ] branch per task;
-- [ ] commits and diff inspection;
-- [ ] configurable test/lint/build checks;
-- [ ] acceptance criteria;
-- [ ] reject-and-retry loop;
-- [ ] controlled merge.
-
-### Phase 3 · Web operations
-
-- [ ] overview briefing;
-- [ ] kanban board;
-- [ ] worker/agent visibility;
-- [ ] live task logs;
-- [ ] diff and validation views;
-- [ ] attempt history and audit trail.
-
-### Phase 4 · Multi-agent orchestration
-
-- [ ] specialized worker profiles;
-- [ ] dependency-aware tasks;
-- [ ] parallel execution;
-- [ ] QA/reviewer agents;
-- [ ] task decomposition;
-- [ ] resource-aware scheduling.
-
-</details>
+Later phases add richer dependency-aware scheduling, multiple concurrent specialist agents and automated reviewer/QA roles. The rule remains the same: autonomy only increases after observability and validation can keep up with it.
 
 ## Design principles
 
-1. **Tasks are durable. Agents are disposable.** Execution can die without losing the work model.
-2. **Completion is a claim, not a fact.** Agent output must be validated before a task closes.
-3. **Isolation by default.** Workers receive the minimum host access required to perform a task.
-4. **Git is the boundary.** Work happens on task branches and becomes permanent only after approval.
-5. **MCP controls the system, not its internals.** The protocol stays small while Nidavelir owns state and policy.
-6. **Observability before autonomy.** If the operator cannot understand what an agent is doing, the system is not ready for more autonomy.
-7. **The UI earns every pixel.** Dense operational information beats decorative dashboard noise.
+1. **Tasks are durable. Agents are disposable.**
+2. **Completion is a claim, not a fact.**
+3. **Isolation by default.**
+4. **Git is the permanence boundary.**
+5. **MCP controls the system, not its internals.**
+6. **Observability before autonomy.**
+7. **Give each worker the minimum useful context and tools.**
+8. **Agent prose is disposable; artifacts and evidence are durable.**
+9. **The UI earns every pixel.**
 
 ## Project status
 
 > [!IMPORTANT]
-> **Pre-alpha.** Nidavelir is currently being designed and bootstrapped. The architecture is public, but the end-to-end worker lifecycle is not implemented yet.
+> **Pre-alpha.** The main end-to-end task lifecycle is implemented, but Nidavelir is still being hardened before relying on it as its own primary development environment.
 
-The first milestone is intentionally narrow: create a task through MCP, execute it inside an isolated Codex worker, inspect the result, approve or reject it, and tear the worker down cleanly.
-
-## Contributing
-
-The project is not yet accepting broad feature work while the task model and worker lifecycle are being stabilized.
-
-Architecture discussions and narrowly scoped issues are welcome once the first executable skeleton lands.
+The milestone is no longer “can a worker modify a repository?” The milestone is **can Nidavelir repeatedly develop Nidavelir without an operator babysitting containers, credentials or broken state?**
 
 ## License
 
-Nidavelir is released under the [MIT License](LICENSE).
+Nidavelir itself is released under the [MIT License](LICENSE). Bundled third-party skills retain their own upstream licenses as documented above and inside the worker image.
 
 ---
 

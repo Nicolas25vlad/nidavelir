@@ -7,4 +7,8 @@
 !push-repo.sh
 !capture-diff.sh
 !run-check.sh
+!install-skills.sh
+!resolve-profile.sh
+!profiles.json
+!skills.lock.json
 !README.md

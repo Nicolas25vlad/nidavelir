@@ -25,23 +25,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: core/pyproject.toml
-
       - name: Install dependencies
         run: python -m pip install --upgrade pip && pip install -e '.[dev]'
-
       - name: Lint
         run: ruff check .
-
       - name: Test
         run: pytest -q
-
       - name: Build Core image
         run: docker build -t nidavelir-core:ci .
 
@@ -55,23 +50,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: mcp/pyproject.toml
-
       - name: Install dependencies
         run: python -m pip install --upgrade pip && pip install -e '.[dev]'
-
       - name: Lint
         run: ruff check .
-
       - name: Test
         run: pytest -q
-
       - name: Build MCP image
         run: docker build -t nidavelir-mcp:ci .
 
@@ -85,46 +75,36 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: "22"
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-
       - name: Build
         run: npm run build
-
       - name: Build Web image
         run: docker build -t nidavelir-web:ci .
 
   worker:
     name: Worker
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
       - name: Validate worker scripts
         run: bash -n worker/*.sh
-
       - name: Build worker image
         run: docker build -t nidavelir-worker:ci worker/
-
       - name: Verify non-root runtime
         run: |
           uid="$(docker run --rm --entrypoint id nidavelir-worker:ci -u)"
           test "$uid" = "10001"
-
       - name: Smoke test Codex CLI
         run: docker run --rm nidavelir-worker:ci codex --version
-
       - name: Smoke test Cursor Agent CLI
         run: docker run --rm nidavelir-worker:ci agent --version
-
       - name: Verify worker helpers exist
         run: |
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-prepare
@@ -132,6 +112,18 @@ jobs:
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-push
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-capture-diff
           docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-run-check
+          docker run --rm --entrypoint test nidavelir-worker:ci -x /usr/local/bin/nidavelir-resolve-profile
+      - name: Verify pinned base skill
+        run: docker run --rm --entrypoint test nidavelir-worker:ci -f /opt/nidavelir/skill-store/ponytail/SKILL.md
+      - name: Verify frontend profile isolation
+        run: |
+          output="$(docker run --rm \
+            -e NIDAVELIR_TASK_JSON='{"title":"Fix React frontend form","description":"Update the TypeScript UI","acceptance_criteria":[]}' \
+            --entrypoint /bin/bash nidavelir-worker:ci \
+            -lc 'mkdir -p /tmp/repo && NIDAVELIR_WORKSPACE=/tmp/repo nidavelir-resolve-profile')"
+          test "$(jq -r '.profile' <<<"$output")" = "frontend"
+          jq -e '.skills | index("ponytail") and index("react") and index("typescript")' <<<"$output"
+          jq -e '.skills | index("kubernetes") | not' <<<"$output"
 
   compose:
     name: Compose
@@ -140,13 +132,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
       - name: Validate development compose
         run: docker compose config --quiet
-
       - name: Validate deployment scripts
         run: bash -n deploy/install.sh deploy/nidavelir
-
       - name: Validate production compose
         env:
           NIDAVELIR_INSTALLATION_ID: ci-installation
@@ -175,7 +164,6 @@ jobs:
         run: |
           printf 'Core: %s\nMCP: %s\nWeb: %s\nWorker: %s\nCompose: %s\n' \
             "$CORE_RESULT" "$MCP_RESULT" "$WEB_RESULT" "$WORKER_RESULT" "$COMPOSE_RESULT"
-
           test "$CORE_RESULT" = "success"
           test "$MCP_RESULT" = "success"
           test "$WEB_RESULT" = "success"

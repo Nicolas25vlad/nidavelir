@@ -31,23 +31,31 @@ COPY --chown=root:root \
     push-repo.sh \
     capture-diff.sh \
     run-check.sh \
+    install-skills.sh \
+    resolve-profile.sh \
+    profiles.json \
+    skills.lock.json \
     /usr/local/lib/nidavelir-worker/
 
-RUN ln -s /usr/local/lib/nidavelir-worker/entrypoint.sh /usr/local/bin/nidavelir-worker \
+RUN chmod 0555 /usr/local/lib/nidavelir-worker/*.sh \
+    && /usr/local/lib/nidavelir-worker/install-skills.sh \
+    && ln -s /usr/local/lib/nidavelir-worker/entrypoint.sh /usr/local/bin/nidavelir-worker \
     && ln -s /usr/local/lib/nidavelir-worker/git-askpass.sh /usr/local/bin/nidavelir-git-askpass \
     && ln -s /usr/local/lib/nidavelir-worker/prepare-repo.sh /usr/local/bin/nidavelir-prepare \
     && ln -s /usr/local/lib/nidavelir-worker/run-task.sh /usr/local/bin/nidavelir-run-task \
     && ln -s /usr/local/lib/nidavelir-worker/push-repo.sh /usr/local/bin/nidavelir-push \
     && ln -s /usr/local/lib/nidavelir-worker/capture-diff.sh /usr/local/bin/nidavelir-capture-diff \
     && ln -s /usr/local/lib/nidavelir-worker/run-check.sh /usr/local/bin/nidavelir-run-check \
-    && chmod 0555 /usr/local/lib/nidavelir-worker/*.sh
+    && ln -s /usr/local/lib/nidavelir-worker/resolve-profile.sh /usr/local/bin/nidavelir-resolve-profile
 
 USER nidavelir
 WORKDIR /workspace/repo
 
 ENV HOME=/home/nidavelir \
     PATH=/home/nidavelir/.local/bin:$PATH \
-    NIDAVELIR_WORKSPACE=/workspace/repo
+    NIDAVELIR_WORKSPACE=/workspace/repo \
+    NIDAVELIR_PROFILES_FILE=/usr/local/lib/nidavelir-worker/profiles.json \
+    NIDAVELIR_SKILL_STORE=/opt/nidavelir/skill-store
 
 ENTRYPOINT ["/usr/local/bin/nidavelir-worker"]
 CMD ["sleep", "infinity"]
