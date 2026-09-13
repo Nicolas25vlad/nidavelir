@@ -19,11 +19,7 @@ from nidavelir_core.execution.queue import (
     renew_attempt_lease,
 )
 from nidavelir_core.execution.repository import AttemptRepository
-from nidavelir_core.execution.service import (
-    cancel_attempt_resources,
-    cleanup_orphaned_resources,
-    execute_attempt,
-)
+from nidavelir_core.execution.service import cancel_attempt_resources, execute_attempt
 from nidavelir_core.settings import get_settings
 from nidavelir_core.tasks.domain import InvalidTaskTransition, TaskState
 from nidavelir_core.tasks.repository import TaskRepository
@@ -58,6 +54,9 @@ def _run_claimed_attempt(attempt_id: UUID, owner: str) -> None:
     heartbeat = Thread(target=_heartbeat, args=(attempt_id, owner, stopped), daemon=True)
     heartbeat.start()
     try:
+        # A PREPARING attempt may be reclaimed after a dead executor's lease expires.
+        # Clean only resources belonging to this attempt, never all Nidavelir resources.
+        cancel_attempt_resources(attempt_id)
         execute_attempt(attempt_id)
     finally:
         stopped.set()
@@ -102,7 +101,6 @@ def run() -> None:
     owner = _executor_id()
     active: dict[Future[None], UUID] = {}
     logger.info("starting Nidavelir executor %s", owner)
-    cleanup_orphaned_resources()
     _recover_stale_attempts()
 
     with ThreadPoolExecutor(
