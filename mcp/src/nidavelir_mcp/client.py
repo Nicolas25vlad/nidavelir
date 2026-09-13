@@ -42,9 +42,10 @@ class CoreClient:
         path: str,
         *,
         json: dict[str, Any] | None = None,
+        params: dict[str, str] | None = None,
     ) -> Any:
         try:
-            response = self._client.request(method, path, json=json)
+            response = self._client.request(method, path, json=json, params=params)
         except httpx.HTTPError as error:
             raise CoreAPIError(
                 503,
@@ -72,6 +73,9 @@ class CoreClient:
         base_branch: str = "main",
         acceptance_criteria: list[str] | None = None,
         validation_commands: list[dict[str, Any]] | None = None,
+        supervisor_client: str | None = None,
+        supervisor_session_id: str | None = None,
+        project_id: str | None = None,
     ) -> dict[str, Any]:
         return self._request(
             "POST",
@@ -83,14 +87,32 @@ class CoreClient:
                 "base_branch": base_branch,
                 "acceptance_criteria": acceptance_criteria or [],
                 "validation_commands": validation_commands or [],
+                "supervisor_client": supervisor_client,
+                "supervisor_session_id": supervisor_session_id,
+                "project_id": project_id,
             },
         )
 
     def list_harnesses(self) -> list[dict[str, Any]]:
         return self._request("GET", "/harnesses")
 
-    def list_tasks(self) -> list[dict[str, Any]]:
-        return self._request("GET", "/tasks")
+    def list_tasks(
+        self,
+        *,
+        supervisor_client: str | None = None,
+        supervisor_session_id: str | None = None,
+        project_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        params = {
+            key: value
+            for key, value in {
+                "supervisor_client": supervisor_client,
+                "supervisor_session_id": supervisor_session_id,
+                "project_id": project_id,
+            }.items()
+            if value is not None
+        }
+        return self._request("GET", "/tasks", params=params or None)
 
     def get_task(self, task_id: str) -> dict[str, Any]:
         return self._request("GET", f"/tasks/{task_id}")

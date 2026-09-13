@@ -15,7 +15,8 @@ mcp = MCPServer(
     "Nidavelir",
     instructions=(
         "Control durable coding tasks and inspect disposable worker attempts. "
-        "Check available harnesses before execution when selecting an agent. "
+        "External clients are supervisors; Codex/Cursor/Claude CLIs inside workers are worker harnesses. "
+        "Supervisor identity and worker-harness choice are independent. "
         "Agent completion is not approval: validation must pass before review. "
         "Merge is always explicit."
     ),
@@ -47,7 +48,7 @@ def _call(operation: str, fn: Callable[[], Any]) -> dict[str, Any]:
 
 @mcp.tool()
 def list_harnesses() -> dict[str, Any]:
-    """List installed coding harnesses, capabilities and credential readiness."""
+    """List installed worker harnesses, capabilities and credential readiness."""
     return _call("list_harnesses", get_core_client().list_harnesses)
 
 
@@ -59,8 +60,11 @@ def create_task(
     base_branch: str = "main",
     acceptance_criteria: list[str] | None = None,
     validation_commands: list[dict[str, Any]] | None = None,
+    supervisor_client: str | None = None,
+    supervisor_session_id: str | None = None,
+    project_id: str | None = None,
 ) -> dict[str, Any]:
-    """Create a durable task with optional deterministic validation commands."""
+    """Create a durable task, optionally stamped with non-secret supervisor metadata."""
     return _call(
         "create_task",
         lambda: get_core_client().create_task(
@@ -70,14 +74,28 @@ def create_task(
             base_branch=base_branch,
             acceptance_criteria=acceptance_criteria,
             validation_commands=validation_commands,
+            supervisor_client=supervisor_client,
+            supervisor_session_id=supervisor_session_id,
+            project_id=project_id,
         ),
     )
 
 
 @mcp.tool()
-def list_tasks() -> dict[str, Any]:
-    """List durable tasks, newest first."""
-    return _call("list_tasks", get_core_client().list_tasks)
+def list_tasks(
+    supervisor_client: str | None = None,
+    supervisor_session_id: str | None = None,
+    project_id: str | None = None,
+) -> dict[str, Any]:
+    """List durable tasks globally or filter by supervisor/session/project metadata."""
+    return _call(
+        "list_tasks",
+        lambda: get_core_client().list_tasks(
+            supervisor_client=supervisor_client,
+            supervisor_session_id=supervisor_session_id,
+            project_id=project_id,
+        ),
+    )
 
 
 @mcp.tool()
@@ -114,7 +132,7 @@ def update_task(
 
 @mcp.tool()
 def start_task(task_id: str, harness: str = "codex") -> dict[str, Any]:
-    """Queue a disposable Codex or Cursor attempt, including retries after rejection."""
+    """Queue a disposable Codex or Cursor worker attempt, including retries."""
     return _call("start_task", lambda: get_core_client().start_task(task_id, harness=harness))
 
 
