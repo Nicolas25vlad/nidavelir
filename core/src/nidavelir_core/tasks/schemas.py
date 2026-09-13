@@ -21,6 +21,9 @@ class TaskCreate(BaseModel):
     base_branch: str = Field(default="main", min_length=1, max_length=200)
     acceptance_criteria: list[str] = Field(default_factory=list, max_length=100)
     validation_commands: list[ValidationCommand] = Field(default_factory=list, max_length=50)
+    supervisor_client: str | None = Field(default=None, min_length=1, max_length=80)
+    supervisor_session_id: str | None = Field(default=None, min_length=1, max_length=200)
+    project_id: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class TaskUpdate(BaseModel):
@@ -30,6 +33,9 @@ class TaskUpdate(BaseModel):
     base_branch: str | None = Field(default=None, min_length=1, max_length=200)
     acceptance_criteria: list[str] | None = Field(default=None, max_length=100)
     validation_commands: list[ValidationCommand] | None = Field(default=None, max_length=50)
+    supervisor_client: str | None = Field(default=None, min_length=1, max_length=80)
+    supervisor_session_id: str | None = Field(default=None, min_length=1, max_length=200)
+    project_id: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class TaskTransitionRequest(BaseModel):
@@ -85,6 +91,9 @@ class TaskRead(BaseModel):
     base_branch: str
     acceptance_criteria: list[str]
     validation_commands: list[ValidationCommand]
+    supervisor_client: str | None
+    supervisor_session_id: str | None
+    project_id: str | None
     merge_commit_sha: str | None
     state: TaskState
     created_at: datetime
