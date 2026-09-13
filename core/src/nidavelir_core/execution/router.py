@@ -10,6 +10,7 @@ from nidavelir_core.tasks.domain import InvalidTaskTransition, TaskState
 from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
 
 from .models import AttemptStatus
+from .queue import enqueue_attempt
 from .repository import AttemptNotFound, AttemptRepository
 from .schemas import (
     AttemptDiffRead,
@@ -23,7 +24,6 @@ from .service import (
     ExecutionConfigurationError,
     ExecutionConflict,
     cancel_attempt_resources,
-    enqueue_attempt,
 )
 from .validation import ValidationRepository
 
@@ -78,8 +78,6 @@ def start_task(
     except ExecutionConflict as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
-    # The API only persists the queued attempt. A dedicated executor process
-    # claims it from PostgreSQL and owns all long-running Docker work.
     return AttemptRead.model_validate(attempt)
 
 
