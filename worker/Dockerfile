@@ -37,11 +37,13 @@ COPY --chown=root:root \
     detect-validation.sh \
     install-skills.sh \
     resolve-profile.sh \
+    validate-profiles.sh \
     profiles.json \
     skills.lock.json \
     /usr/local/lib/nidavelir-worker/
 
 RUN chmod 0555 /usr/local/lib/nidavelir-worker/*.sh \
+    && /usr/local/lib/nidavelir-worker/validate-profiles.sh \
     && /usr/local/lib/nidavelir-worker/install-skills.sh \
     && ln -s /usr/local/lib/nidavelir-worker/entrypoint.sh /usr/local/bin/nidavelir-worker \
     && ln -s /usr/local/lib/nidavelir-worker/git-askpass.sh /usr/local/bin/nidavelir-git-askpass \
