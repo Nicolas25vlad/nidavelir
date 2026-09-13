@@ -84,7 +84,11 @@ def _recover_stale_attempts() -> None:
                 )
                 try:
                     task = tasks.get(attempt.task_id)
-                    if task.state in {TaskState.RUNNING, TaskState.AGENT_DONE, TaskState.VALIDATING}:
+                    if task.state in {
+                        TaskState.RUNNING,
+                        TaskState.AGENT_DONE,
+                        TaskState.VALIDATING,
+                    }:
                         tasks.transition(
                             task.id,
                             TaskState.NEEDS_CHANGES,
@@ -100,14 +104,20 @@ def run() -> None:
     settings = get_settings()
     owner = _executor_id()
     active: dict[Future[None], UUID] = {}
+    recovery_interval = max(5.0, float(settings.executor_heartbeat_seconds))
+    next_recovery = 0.0
     logger.info("starting Nidavelir executor %s", owner)
-    _recover_stale_attempts()
 
     with ThreadPoolExecutor(
         max_workers=settings.max_parallel_workers,
         thread_name_prefix="nidavelir-attempt",
     ) as pool:
         while True:
+            now = time.monotonic()
+            if now >= next_recovery:
+                _recover_stale_attempts()
+                next_recovery = now + recovery_interval
+
             for future, attempt_id in list(active.items()):
                 if future.done():
                     active.pop(future, None)
