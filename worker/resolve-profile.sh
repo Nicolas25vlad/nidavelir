@@ -174,13 +174,17 @@ while IFS= read -r skill; do
   ln -s "$store/$skill" "$HOME/.codex/skills/$skill"
 done <<<"$skills"
 
+schema_version="$(jq -r '.schema_version' "$profiles_file")"
 base_instructions="$(jq -r '.base_instructions' "$profiles_file")"
 profile_instructions="$(jq -r --arg profile "$profile" '.profiles[$profile].instructions' "$profiles_file")"
 instructions="${base_instructions} ${profile_instructions}"
+prompt_fingerprint="$(printf '%s' "$instructions" | sha256sum | awk '{print $1}')"
 skills_csv="$(paste -sd, <<<"$skills")"
 
 jq -cn \
   --arg profile "$profile" \
   --arg instructions "$instructions" \
   --arg skills "$skills_csv" \
-  '{profile:$profile,instructions:$instructions,skills:($skills|split(",")|map(select(length>0)))}'
+  --arg prompt_fingerprint "$prompt_fingerprint" \
+  --argjson schema_version "$schema_version" \
+  '{profile:$profile,schema_version:$schema_version,prompt_fingerprint:$prompt_fingerprint,instructions:$instructions,skills:($skills|split(",")|map(select(length>0)))}'

@@ -156,9 +156,15 @@ jobs:
           }
 
           frontend="$(resolve '{"title":"Fix React frontend form","description":"Update TypeScript component state","acceptance_criteria":[]}')"
+          frontend_repeat="$(resolve '{"title":"Fix React frontend form","description":"Update TypeScript component state","acceptance_criteria":[]}')"
+          backend="$(resolve '{"title":"Fix API endpoint","description":"Update backend request validation","acceptance_criteria":[]}')"
           test "$(jq -r '.profile' <<<"$frontend")" = "frontend-web"
           jq -e '.skills | index("ponytail") and index("react") and index("typescript")' <<<"$frontend"
           jq -e '.instructions | contains("Web frontend profile")' <<<"$frontend"
+          jq -e '.schema_version == 3' <<<"$frontend"
+          jq -e '.prompt_fingerprint | test("^[0-9a-f]{64}$")' <<<"$frontend"
+          test "$(jq -r '.prompt_fingerprint' <<<"$frontend")" = "$(jq -r '.prompt_fingerprint' <<<"$frontend_repeat")"
+          test "$(jq -r '.prompt_fingerprint' <<<"$frontend")" != "$(jq -r '.prompt_fingerprint' <<<"$backend")"
 
           devops="$(resolve '{"title":"Update Docker Compose healthcheck","description":"Change compose.yaml only","acceptance_criteria":[]}')"
           test "$(jq -r '.profile' <<<"$devops")" = "devops"
