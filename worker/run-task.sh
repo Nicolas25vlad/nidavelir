@@ -14,7 +14,10 @@ cd "$workspace"
 
 profile_json="$(nidavelir-resolve-profile)"
 profile="$(jq -r '.profile' <<<"$profile_json")"
+profile_schema_version="$(jq -r '.schema_version' <<<"$profile_json")"
+prompt_fingerprint="$(jq -r '.prompt_fingerprint' <<<"$profile_json")"
 profile_instructions="$(jq -r '.instructions' <<<"$profile_json")"
+skills_json="$(jq -c '.skills' <<<"$profile_json")"
 skills="$(jq -r '.skills | join(", ")' <<<"$profile_json")"
 
 title="$(jq -r '.title' <<<"$task_json")"
@@ -31,6 +34,8 @@ else
 fi
 
 printf 'NIDAVELIR_AGENT_PROFILE=%s\n' "$profile"
+printf 'NIDAVELIR_AGENT_PROFILE_SCHEMA_VERSION=%s\n' "$profile_schema_version"
+printf 'NIDAVELIR_AGENT_PROFILE_FINGERPRINT=%s\n' "$prompt_fingerprint"
 printf 'NIDAVELIR_AGENT_SKILLS=%s\n' "$skills"
 printf 'NIDAVELIR_VALIDATION_MODE=%s\n' "$(jq -r '.mode' <<<"$validation_plan")"
 printf 'NIDAVELIR_TOKEN_POLICY=reasoning:%s verbosity:%s tool_output:%s project_docs:%s\n' \
@@ -96,10 +101,13 @@ if (( exit_code != 0 )); then
     --arg harness "$harness" \
     --arg profile "$profile" \
     --arg branch "$task_branch" \
+    --arg prompt_fingerprint "$prompt_fingerprint" \
+    --argjson profile_schema_version "$profile_schema_version" \
+    --argjson skills "$skills_json" \
     --argjson exit_code "$exit_code" \
     --argjson token_usage "$usage_json" \
     --argjson validation_plan "$validation_plan" \
-    '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, exit_code: $exit_code, token_usage: $token_usage, validation_plan: $validation_plan}' \
+    '{type:$type,status:$status,harness:$harness,profile:$profile,profile_schema_version:$profile_schema_version,prompt_fingerprint:$prompt_fingerprint,skills:$skills,branch:$branch,exit_code:$exit_code,token_usage:$token_usage,validation_plan:$validation_plan}' \
     | sed 's/^/NIDAVELIR_RESULT=/'
   exit "$exit_code"
 fi
@@ -117,7 +125,10 @@ jq -cn \
   --arg profile "$profile" \
   --arg branch "$task_branch" \
   --arg commit "$commit" \
+  --arg prompt_fingerprint "$prompt_fingerprint" \
+  --argjson profile_schema_version "$profile_schema_version" \
+  --argjson skills "$skills_json" \
   --argjson token_usage "$usage_json" \
   --argjson validation_plan "$validation_plan" \
-  '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, commit: $commit, token_usage: $token_usage, validation_plan: $validation_plan}' \
+  '{type:$type,status:$status,harness:$harness,profile:$profile,profile_schema_version:$profile_schema_version,prompt_fingerprint:$prompt_fingerprint,skills:$skills,branch:$branch,commit:$commit,token_usage:$token_usage,validation_plan:$validation_plan}' \
   | sed 's/^/NIDAVELIR_RESULT=/'
