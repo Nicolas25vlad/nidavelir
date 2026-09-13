@@ -23,8 +23,16 @@ criteria="$(jq -r '.acceptance_criteria[]? | "- " + .' <<<"$task_json")"
 context="$(jq -r '.context // ""' <<<"$task_json")"
 commit_title="$(printf '%s' "$title" | head -n 1 | cut -c1-72)"
 
+configured_validation_count="$(jq '.validation_commands // [] | length' <<<"$task_json")"
+if (( configured_validation_count > 0 )); then
+  validation_plan="$(jq -c '{mode:"configured",reason:"validation commands configured on task",commands:(.validation_commands // []),notes:[]}' <<<"$task_json")"
+else
+  validation_plan="$(nidavelir-detect-validation)"
+fi
+
 printf 'NIDAVELIR_AGENT_PROFILE=%s\n' "$profile"
 printf 'NIDAVELIR_AGENT_SKILLS=%s\n' "$skills"
+printf 'NIDAVELIR_VALIDATION_MODE=%s\n' "$(jq -r '.mode' <<<"$validation_plan")"
 printf 'NIDAVELIR_TOKEN_POLICY=reasoning:%s verbosity:%s tool_output:%s project_docs:%s\n' \
   "$reasoning_effort" "$model_verbosity" "$tool_output_limit" "$project_doc_max_bytes"
 
@@ -90,7 +98,8 @@ if (( exit_code != 0 )); then
     --arg branch "$task_branch" \
     --argjson exit_code "$exit_code" \
     --argjson token_usage "$usage_json" \
-    '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, exit_code: $exit_code, token_usage: $token_usage}' \
+    --argjson validation_plan "$validation_plan" \
+    '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, exit_code: $exit_code, token_usage: $token_usage, validation_plan: $validation_plan}' \
     | sed 's/^/NIDAVELIR_RESULT=/'
   exit "$exit_code"
 fi
@@ -109,5 +118,6 @@ jq -cn \
   --arg branch "$task_branch" \
   --arg commit "$commit" \
   --argjson token_usage "$usage_json" \
-  '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, commit: $commit, token_usage: $token_usage}' \
+  --argjson validation_plan "$validation_plan" \
+  '{type: $type, status: $status, harness: $harness, profile: $profile, branch: $branch, commit: $commit, token_usage: $token_usage, validation_plan: $validation_plan}' \
   | sed 's/^/NIDAVELIR_RESULT=/'

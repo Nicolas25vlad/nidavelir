@@ -9,6 +9,9 @@ RUN apt-get update \
         git \
         jq \
         openssh-client \
+        python3 \
+        python3-pip \
+        python3-venv \
         ripgrep \
     && npm install --global "@openai/codex@${CODEX_VERSION}" \
     && npm cache clean --force \
@@ -31,6 +34,7 @@ COPY --chown=root:root \
     push-repo.sh \
     capture-diff.sh \
     run-check.sh \
+    detect-validation.sh \
     install-skills.sh \
     resolve-profile.sh \
     profiles.json \
@@ -46,6 +50,7 @@ RUN chmod 0555 /usr/local/lib/nidavelir-worker/*.sh \
     && ln -s /usr/local/lib/nidavelir-worker/push-repo.sh /usr/local/bin/nidavelir-push \
     && ln -s /usr/local/lib/nidavelir-worker/capture-diff.sh /usr/local/bin/nidavelir-capture-diff \
     && ln -s /usr/local/lib/nidavelir-worker/run-check.sh /usr/local/bin/nidavelir-run-check \
+    && ln -s /usr/local/lib/nidavelir-worker/detect-validation.sh /usr/local/bin/nidavelir-detect-validation \
     && ln -s /usr/local/lib/nidavelir-worker/resolve-profile.sh /usr/local/bin/nidavelir-resolve-profile
 
 USER nidavelir

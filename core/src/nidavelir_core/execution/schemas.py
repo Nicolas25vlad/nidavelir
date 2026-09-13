@@ -33,6 +33,9 @@ class AttemptRead(BaseModel):
     branch_name: str
     retry_context: str
     retry_review_ids: list[str]
+    validation_mode: str
+    validation_reason: str
+    resolved_validation_commands: list[dict]
     base_commit_sha: str | None
     commit_sha: str | None
     result: dict | None

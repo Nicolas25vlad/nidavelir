@@ -35,6 +35,30 @@ class ValidationRepository:
         self.session.commit()
         return self.list_for_attempt(attempt_id)
 
+    def create_skipped(
+        self,
+        *,
+        task_id: UUID,
+        attempt_id: UUID,
+        reason: str,
+    ) -> ValidationCheckRecord:
+        check = ValidationCheckRecord(
+            task_id=task_id,
+            attempt_id=attempt_id,
+            position=0,
+            name="UNVALIDATED",
+            check_type="validation",
+            command="",
+            status=ValidationCheckStatus.SKIPPED,
+            output=reason,
+            started_at=utcnow(),
+            finished_at=utcnow(),
+        )
+        self.session.add(check)
+        self.session.commit()
+        self.session.refresh(check)
+        return check
+
     def list_for_attempt(self, attempt_id: UUID) -> list[ValidationCheckRecord]:
         statement = (
             select(ValidationCheckRecord)
