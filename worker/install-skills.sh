@@ -11,9 +11,20 @@ mkdir -p "$store" "$licenses"
 
 while IFS=$'\t' read -r source repo revision license_file; do
   source_dir="$work/$source"
+  mapfile -t sparse_paths < <(
+    jq -r --arg source "$source" '.skills[] | select(.source == $source) | .path' "$lock_file"
+  )
+
+  if (( ${#sparse_paths[@]} == 0 )); then
+    printf 'nidavelir: source %s has no referenced skills\n' "$source" >&2
+    exit 65
+  fi
+
   git init -q "$source_dir"
   git -C "$source_dir" remote add origin "$repo"
-  git -C "$source_dir" fetch -q --depth 1 origin "$revision"
+  git -C "$source_dir" sparse-checkout init --cone
+  git -C "$source_dir" sparse-checkout set "${sparse_paths[@]}"
+  git -C "$source_dir" fetch -q --depth 1 --no-tags --filter=blob:none origin "$revision"
   git -C "$source_dir" checkout -q --detach FETCH_HEAD
 
   if [[ ! -f "$source_dir/$license_file" ]]; then
@@ -31,7 +42,11 @@ while IFS=$'\t' read -r source repo revision license_file; do
     fi
     rm -rf "$store/$skill"
     cp -a "$skill_dir" "$store/$skill"
-  done < <(jq -r --arg source "$source" '.skills[] | select(.source == $source) | [.id, .path] | @tsv' "$lock_file")
+  done < <(
+    jq -r --arg source "$source" \
+      '.skills[] | select(.source == $source) | [.id, .path] | @tsv' \
+      "$lock_file"
+  )
 done < <(jq -r '.sources[] | [.id, .repository, .revision, .license_file] | @tsv' "$lock_file")
 
 find "$store" -type d -exec chmod 0555 {} +
