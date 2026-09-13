@@ -10,6 +10,7 @@
 !detect-validation.sh
 !install-skills.sh
 !resolve-profile.sh
+!validate-profiles.sh
 !profiles.json
 !skills.lock.json
 !README.md
