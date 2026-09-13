@@ -15,7 +15,8 @@ mcp = MCPServer(
     "Nidavelir",
     instructions=(
         "Control durable coding tasks and inspect disposable worker attempts. "
-        "External clients are supervisors; Codex/Cursor/Claude CLIs inside workers are worker harnesses. "
+        "External clients are supervisors; Codex/Cursor/Claude CLIs inside "
+        "workers are worker harnesses. "
         "Supervisor identity and worker-harness choice are independent. "
         "Agent completion is not approval: validation must pass before review. "
         "Merge is always explicit."
