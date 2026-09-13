@@ -20,6 +20,9 @@ def test_create_task_sends_normalized_payload() -> None:
                 "timeout_seconds": 300,
             }
         ]
+        assert payload["supervisor_client"] == "codex"
+        assert payload["supervisor_session_id"] == "chat-a"
+        assert payload["project_id"] == "nidavelir"
         return httpx.Response(
             201,
             json={"id": "task-1", "title": "Ship MVP", "state": "BACKLOG"},
@@ -39,12 +42,37 @@ def test_create_task_sends_normalized_payload() -> None:
                     "timeout_seconds": 300,
                 }
             ],
+            supervisor_client="codex",
+            supervisor_session_id="chat-a",
+            project_id="nidavelir",
         )
     finally:
         client.close()
 
     assert task["id"] == "task-1"
     assert task["state"] == "BACKLOG"
+
+
+def test_list_tasks_sends_supervisor_filters() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/tasks"
+        assert request.url.params["supervisor_client"] == "codex"
+        assert request.url.params["supervisor_session_id"] == "chat-a"
+        assert request.url.params["project_id"] == "nidavelir"
+        return httpx.Response(200, json=[])
+
+    client = CoreClient("http://core:8000", transport=httpx.MockTransport(handler))
+    try:
+        tasks = client.list_tasks(
+            supervisor_client="codex",
+            supervisor_session_id="chat-a",
+            project_id="nidavelir",
+        )
+    finally:
+        client.close()
+
+    assert tasks == []
 
 
 def test_diff_and_check_requests_use_attempt_endpoints() -> None:
