@@ -8,10 +8,12 @@ from nidavelir_core.database import Base
 from nidavelir_core.execution.models import AttemptStatus, utcnow
 from nidavelir_core.execution.queue import (
     claim_next_attempt,
+    enqueue_attempt,
     release_attempt_lease,
     renew_attempt_lease,
 )
 from nidavelir_core.execution.repository import AttemptRepository
+from nidavelir_core.settings import Settings
 from nidavelir_core.tasks.repository import TaskRepository
 from nidavelir_core.tasks.schemas import TaskCreate
 
@@ -37,6 +39,31 @@ def _queued_attempt(session: Session):
         volume_name=f"executor-volume-{task.id}",
         branch_name=f"task/{task.id}",
     )
+
+
+def test_enqueue_can_exceed_active_worker_capacity(monkeypatch) -> None:
+    factory = _session_factory()
+    settings = Settings(
+        max_parallel_workers=1,
+        github_token="github-test",
+        openai_api_key="openai-test",
+    )
+    monkeypatch.setattr(
+        "nidavelir_core.execution.queue.get_settings",
+        lambda: settings,
+    )
+
+    with factory() as session:
+        tasks = TaskRepository(session)
+        first = tasks.create(TaskCreate(title="first", repository="owner/repo"))
+        second = tasks.create(TaskCreate(title="second", repository="owner/repo"))
+
+        first_attempt = enqueue_attempt(session, first.id)
+        second_attempt = enqueue_attempt(session, second.id)
+
+        assert first_attempt.status == AttemptStatus.PREPARING
+        assert second_attempt.status == AttemptStatus.PREPARING
+        assert AttemptRepository(session).count_active() == 2
 
 
 def test_claim_is_exclusive_until_lease_released() -> None:
