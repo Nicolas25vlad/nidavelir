@@ -6,7 +6,60 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from nidavelir_core.settings import get_settings
+from nidavelir_core.tasks.domain import TaskState
+from nidavelir_core.tasks.repository import TaskRepository
+
 from .models import AttemptRecord, AttemptStatus, utcnow
+from .repository import AttemptRepository
+from .service import (
+    ExecutionConflict,
+    _installation_namespace,
+    _validate_harness_configuration,
+    task_branch_name,
+)
+
+
+def enqueue_attempt(
+    session: Session,
+    task_id: UUID,
+    *,
+    harness: str = "codex",
+) -> AttemptRecord:
+    """Persist work for the executor without applying active-worker admission limits."""
+    settings = get_settings()
+    _validate_harness_configuration(settings, harness)
+
+    tasks = TaskRepository(session)
+    attempts = AttemptRepository(session)
+    task = tasks.get(task_id)
+
+    latest = attempts.latest_for_task(task_id)
+    if latest is not None and latest.status in {
+        AttemptStatus.PREPARING,
+        AttemptStatus.RUNNING,
+    }:
+        raise ExecutionConflict(f"task {task_id} already has an active attempt")
+
+    if task.state in {TaskState.BACKLOG, TaskState.NEEDS_CHANGES}:
+        task = tasks.transition(task_id, TaskState.QUEUED, reason="execution requested")
+    elif task.state != TaskState.QUEUED:
+        raise ExecutionConflict(f"task {task_id} cannot start from {task.state}")
+
+    number = attempts.next_number(task_id)
+    short_id = str(task.id)[:8]
+    namespace = _installation_namespace(settings)
+    runtime_name = f"nidavelir-{namespace}-{short_id}-a{number}"
+    return attempts.create(
+        task_id=task.id,
+        number=number,
+        container_name=runtime_name,
+        volume_name=f"nidavelir-{namespace}-task-{short_id}-a{number}",
+        branch_name=task_branch_name(task.id, task.title),
+        harness=harness,
+        retry_context=task.retry_context,
+        retry_review_ids=task.retry_review_ids,
+    )
 
 
 def claim_next_attempt(
