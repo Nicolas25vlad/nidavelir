@@ -77,6 +77,48 @@ def test_enqueue_creates_attempt_and_queues_task(session_factory) -> None:
         assert persisted_task.transitions[-1].to_state == "QUEUED"
 
 
+def test_codex_supervisor_can_delegate_to_cursor_worker(session_factory) -> None:
+    with session_factory() as session:
+        task = TaskRepository(session).create(
+            TaskCreate(
+                title="Frontend delegated from Codex",
+                repository="Nicolas25vlad/nidavelir",
+                supervisor_client="codex",
+                supervisor_session_id="codex-chat-a",
+                project_id="nidavelir",
+            )
+        )
+        attempt = enqueue_attempt(session, task.id, harness="cursor")
+        persisted_task = TaskRepository(session).get(task.id)
+        environment = _agent_environment(get_settings(), attempt, persisted_task)
+
+        assert persisted_task.supervisor_client == "codex"
+        assert attempt.harness == "cursor"
+        assert environment["CURSOR_API_KEY"] == "cursor-key"
+        assert "OPENAI_API_KEY" not in environment
+
+
+def test_cursor_supervisor_can_delegate_to_codex_worker(session_factory) -> None:
+    with session_factory() as session:
+        task = TaskRepository(session).create(
+            TaskCreate(
+                title="Backend delegated from Cursor",
+                repository="Nicolas25vlad/nidavelir",
+                supervisor_client="cursor",
+                supervisor_session_id="cursor-chat-b",
+                project_id="api",
+            )
+        )
+        attempt = enqueue_attempt(session, task.id, harness="codex")
+        persisted_task = TaskRepository(session).get(task.id)
+        environment = _agent_environment(get_settings(), attempt, persisted_task)
+
+        assert persisted_task.supervisor_client == "cursor"
+        assert attempt.harness == "codex"
+        assert environment["OPENAI_API_KEY"] == "openai-key"
+        assert "CURSOR_API_KEY" not in environment
+
+
 def test_cursor_attempt_is_selected_and_receives_only_cursor_credential(session_factory) -> None:
     with session_factory() as session:
         task = _create_task(session, "Run this task with Cursor")
