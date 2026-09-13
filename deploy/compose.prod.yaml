@@ -28,8 +28,8 @@ services:
     restart: "no"
 
   core:
-    image: ghcr.io/nicolas25vlad/nidavelir-core:${NIDAVELIR_VERSION:-latest}
-    environment:
+    image: &core-image ghcr.io/nicolas25vlad/nidavelir-core:${NIDAVELIR_VERSION:-latest}
+    environment: &core-environment
       NIDAVELIR_DATABASE_URL: ${NIDAVELIR_DATABASE_URL:?set NIDAVELIR_DATABASE_URL}
       NIDAVELIR_ENV: production
       NIDAVELIR_INSTALLATION_ID: ${NIDAVELIR_INSTALLATION_ID:?set NIDAVELIR_INSTALLATION_ID}
@@ -40,6 +40,9 @@ services:
       NIDAVELIR_WORKER_MEMORY: ${NIDAVELIR_WORKER_MEMORY:-2g}
       NIDAVELIR_WORKER_TIMEOUT_SECONDS: ${NIDAVELIR_WORKER_TIMEOUT_SECONDS:-1800}
       NIDAVELIR_WORKER_STOP_TIMEOUT_SECONDS: ${NIDAVELIR_WORKER_STOP_TIMEOUT_SECONDS:-10}
+      NIDAVELIR_EXECUTOR_POLL_SECONDS: ${NIDAVELIR_EXECUTOR_POLL_SECONDS:-1}
+      NIDAVELIR_EXECUTOR_LEASE_SECONDS: ${NIDAVELIR_EXECUTOR_LEASE_SECONDS:-45}
+      NIDAVELIR_EXECUTOR_HEARTBEAT_SECONDS: ${NIDAVELIR_EXECUTOR_HEARTBEAT_SECONDS:-10}
       NIDAVELIR_GITHUB_TOKEN: ${NIDAVELIR_GITHUB_TOKEN:-}
       NIDAVELIR_OPENAI_API_KEY: ${NIDAVELIR_OPENAI_API_KEY:-}
       NIDAVELIR_CURSOR_API_KEY: ${NIDAVELIR_CURSOR_API_KEY:-}
@@ -56,6 +59,26 @@ services:
     cpus: ${NIDAVELIR_CORE_CPUS:-0.75}
     mem_limit: ${NIDAVELIR_CORE_MEMORY:-512m}
     pids_limit: ${NIDAVELIR_CORE_PIDS_LIMIT:-256}
+    restart: unless-stopped
+
+  executor:
+    image: *core-image
+    command: ["python", "-m", "nidavelir_core.executor"]
+    environment: *core-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker-image:
+        condition: service_completed_successfully
+      core:
+        condition: service_started
+    volumes:
+      - ${NIDAVELIR_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    networks:
+      - data
+    cpus: ${NIDAVELIR_EXECUTOR_CPUS:-0.50}
+    mem_limit: ${NIDAVELIR_EXECUTOR_MEMORY:-384m}
+    pids_limit: ${NIDAVELIR_EXECUTOR_PIDS_LIMIT:-256}
     restart: unless-stopped
 
   mcp:

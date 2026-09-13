@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from nidavelir_core.database import get_session
@@ -24,7 +24,6 @@ from .service import (
     ExecutionConflict,
     cancel_attempt_resources,
     enqueue_attempt,
-    execute_attempt,
 )
 from .validation import ValidationRepository
 
@@ -68,7 +67,6 @@ def list_harnesses() -> list[HarnessRead]:
 def start_task(
     task_id: UUID,
     payload: StartTaskRequest,
-    background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> AttemptRead:
     try:
@@ -80,7 +78,8 @@ def start_task(
     except ExecutionConflict as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
-    background_tasks.add_task(execute_attempt, attempt.id)
+    # The API only persists the queued attempt. A dedicated executor process
+    # claims it from PostgreSQL and owns all long-running Docker work.
     return AttemptRead.model_validate(attempt)
 
 

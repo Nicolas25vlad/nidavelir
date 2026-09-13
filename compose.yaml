@@ -30,17 +30,21 @@ services:
   core:
     build:
       context: ./core
-    environment:
+    environment: &core-environment
       NIDAVELIR_DATABASE_URL: postgresql+psycopg://nidavelir:nidavelir@postgres:5432/nidavelir
       NIDAVELIR_ENV: development
       NIDAVELIR_INSTALLATION_ID: ${NIDAVELIR_INSTALLATION_ID:-development}
       NIDAVELIR_LOG_LEVEL: INFO
+      NIDAVELIR_MAX_PARALLEL_WORKERS: ${NIDAVELIR_MAX_PARALLEL_WORKERS:-2}
       NIDAVELIR_WORKER_IMAGE: nidavelir-worker:dev
       NIDAVELIR_WORKER_CPUS: ${NIDAVELIR_WORKER_CPUS:-1.0}
       NIDAVELIR_WORKER_MEMORY: ${NIDAVELIR_WORKER_MEMORY:-2g}
       NIDAVELIR_GITHUB_TOKEN: ${NIDAVELIR_GITHUB_TOKEN:-}
       NIDAVELIR_OPENAI_API_KEY: ${NIDAVELIR_OPENAI_API_KEY:-}
       NIDAVELIR_CURSOR_API_KEY: ${NIDAVELIR_CURSOR_API_KEY:-}
+      NIDAVELIR_EXECUTOR_POLL_SECONDS: ${NIDAVELIR_EXECUTOR_POLL_SECONDS:-1}
+      NIDAVELIR_EXECUTOR_LEASE_SECONDS: ${NIDAVELIR_EXECUTOR_LEASE_SECONDS:-45}
+      NIDAVELIR_EXECUTOR_HEARTBEAT_SECONDS: ${NIDAVELIR_EXECUTOR_HEARTBEAT_SECONDS:-10}
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,6 +60,27 @@ services:
     cpus: ${NIDAVELIR_CORE_CPUS:-0.75}
     mem_limit: ${NIDAVELIR_CORE_MEMORY:-512m}
     pids_limit: ${NIDAVELIR_CORE_PIDS_LIMIT:-256}
+    restart: unless-stopped
+
+  executor:
+    build:
+      context: ./core
+    command: ["python", "-m", "nidavelir_core.executor"]
+    environment: *core-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      worker-image:
+        condition: service_completed_successfully
+      core:
+        condition: service_started
+    volumes:
+      - ${NIDAVELIR_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    networks:
+      - data
+    cpus: ${NIDAVELIR_EXECUTOR_CPUS:-0.50}
+    mem_limit: ${NIDAVELIR_EXECUTOR_MEMORY:-384m}
+    pids_limit: ${NIDAVELIR_EXECUTOR_PIDS_LIMIT:-256}
     restart: unless-stopped
 
   mcp:
