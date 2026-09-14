@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     operator_token: SecretStr | None = None
     service_token: SecretStr | None = None
 
+    executor_poll_seconds: float = 1.0
+    executor_lease_seconds: int = 45
+    executor_heartbeat_seconds: int = 10
+
     worker_image: str = "nidavelir-worker:dev"
     worker_cpus: float = 1.0
     worker_memory: str = "2g"

@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from nidavelir_core.database import get_session
@@ -10,6 +10,7 @@ from nidavelir_core.tasks.domain import InvalidTaskTransition, TaskState
 from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
 
 from .models import AttemptStatus
+from .queue import enqueue_attempt
 from .repository import AttemptNotFound, AttemptRepository
 from .schemas import (
     AttemptDiffRead,
@@ -23,8 +24,6 @@ from .service import (
     ExecutionConfigurationError,
     ExecutionConflict,
     cancel_attempt_resources,
-    enqueue_attempt,
-    execute_attempt,
 )
 from .validation import ValidationRepository
 
@@ -68,7 +67,6 @@ def list_harnesses() -> list[HarnessRead]:
 def start_task(
     task_id: UUID,
     payload: StartTaskRequest,
-    background_tasks: BackgroundTasks,
     session: SessionDep,
 ) -> AttemptRead:
     try:
@@ -80,7 +78,6 @@ def start_task(
     except ExecutionConflict as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
 
-    background_tasks.add_task(execute_attempt, attempt.id)
     return AttemptRead.model_validate(attempt)
 
 
