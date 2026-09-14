@@ -3,10 +3,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .execution.router import router as execution_router
 from .execution.service import cleanup_orphaned_resources
 from .logging import configure_logging
+from .readiness import readiness_report
 from .settings import get_settings
 from .tasks.router import router as tasks_router
 
@@ -44,3 +46,10 @@ def health() -> dict[str, str]:
         "service": "nidavelir-core",
         "environment": current_settings.env,
     }
+
+
+@app.get("/ready", tags=["system"])
+def ready() -> JSONResponse:
+    current_settings = get_settings()
+    is_ready, report = readiness_report(current_settings)
+    return JSONResponse(status_code=200 if is_ready else 503, content=report)
