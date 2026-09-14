@@ -8,6 +8,7 @@
 !capture-diff.sh
 !run-check.sh
 !detect-validation.sh
+!test-validation-detector.sh
 !install-skills.sh
 !resolve-profile.sh
 !validate-profiles.sh
