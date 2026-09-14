@@ -48,7 +48,7 @@ def _apply_token_usage(attempt: AttemptRecord, usage: dict, *, model: str | None
 
 def _apply_validation_plan(attempt: AttemptRecord, plan: dict) -> None:
     mode = str(plan.get("mode", "skipped"))
-    if mode not in {"configured", "auto", "skipped"}:
+    if mode not in {"configured", "repo", "auto", "skipped"}:
         mode = "skipped"
     commands = plan.get("commands")
     attempt.validation_mode = mode
@@ -171,7 +171,7 @@ class AttemptRepository:
         reason: str,
         commands: list[dict],
     ) -> None:
-        if mode not in {"configured", "auto", "skipped"}:
+        if mode not in {"configured", "repo", "auto", "skipped"}:
             raise ValueError(f"unsupported validation mode: {mode}")
         attempt = self.get(attempt_id)
         attempt.validation_mode = mode

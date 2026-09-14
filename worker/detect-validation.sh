@@ -25,6 +25,36 @@ append_command() {
     <<<"$commands")"
 }
 
+repo_config=".nidavelir.json"
+if [[ -f "$repo_config" ]]; then
+  if ! jq -e '
+    (.validation_commands | type == "array") and
+    (.validation_commands | length <= 50) and
+    all(.validation_commands[];
+      (.name | type == "string" and length > 0 and length <= 160) and
+      (.type | type == "string" and (. == "test" or . == "lint" or . == "build")) and
+      (.command | type == "string" and length > 0 and length <= 4000) and
+      ((.timeout_seconds // 300) | type == "number" and . >= 1 and . <= 3600)
+    )
+  ' "$repo_config" >/dev/null 2>&1; then
+    jq -cn --arg reason "invalid .nidavelir.json validation_commands; refusing repository defaults" \
+      '{mode:"skipped",reason:$reason,commands:[],notes:[$reason]}'
+    exit 0
+  fi
+
+  repo_commands="$(jq -c '[.validation_commands[] | {
+    name:.name,
+    type:.type,
+    command:.command,
+    timeout_seconds:(.timeout_seconds // 300)
+  }]' "$repo_config")"
+  if (( $(jq 'length' <<<"$repo_commands") > 0 )); then
+    jq -cn --argjson commands "$repo_commands" \
+      '{mode:"repo",reason:"validation defaults loaded from .nidavelir.json",commands:$commands,notes:[]}'
+    exit 0
+  fi
+fi
+
 # Inspect the root plus one directory level. This covers common monorepos without
 # recursively walking vendor/build trees.
 while IFS= read -r pyproject; do

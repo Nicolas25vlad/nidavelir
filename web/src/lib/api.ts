@@ -75,7 +75,7 @@ export interface Attempt {
   branch_name: string;
   retry_context: string;
   retry_review_ids: string[];
-  validation_mode: "unresolved" | "configured" | "auto" | "skipped";
+  validation_mode: "unresolved" | "configured" | "repo" | "auto" | "skipped";
   validation_reason: string;
   resolved_validation_commands: ValidationCommand[];
   base_commit_sha?: string | null;

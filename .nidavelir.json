@@ -1,0 +1,22 @@
+{
+  "validation_commands": [
+    {
+      "name": "core lint and tests",
+      "type": "test",
+      "command": "cd core && python3 -m venv /tmp/nidavelir-core-validation && . /tmp/nidavelir-core-validation/bin/activate && python -m pip install -q -e '.[dev]' && ruff check . && pytest -q",
+      "timeout_seconds": 900
+    },
+    {
+      "name": "mcp lint and tests",
+      "type": "test",
+      "command": "cd mcp && python3 -m venv /tmp/nidavelir-mcp-validation && . /tmp/nidavelir-mcp-validation/bin/activate && python -m pip install -q -e '.[dev]' && ruff check . && pytest -q",
+      "timeout_seconds": 900
+    },
+    {
+      "name": "web build",
+      "type": "build",
+      "command": "cd web && npm ci --no-audit --no-fund && npm run build",
+      "timeout_seconds": 900
+    }
+  ]
+}

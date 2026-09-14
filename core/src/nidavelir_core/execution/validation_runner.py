@@ -82,7 +82,7 @@ def run_validation_checks(
     tasks: TaskRepository,
     checks: ValidationRepository,
 ) -> bool:
-    if attempt.validation_mode in {"configured", "auto", "skipped"}:
+    if attempt.validation_mode in {"configured", "repo", "auto", "skipped"}:
         commands = list(attempt.resolved_validation_commands or [])
         mode = attempt.validation_mode
         reason = attempt.validation_reason
