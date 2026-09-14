@@ -81,6 +81,16 @@ services:
     cpus: ${NIDAVELIR_EXECUTOR_CPUS:-0.50}
     mem_limit: ${NIDAVELIR_EXECUTOR_MEMORY:-384m}
     pids_limit: ${NIDAVELIR_EXECUTOR_PIDS_LIMIT:-256}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c 'from sqlalchemy import text; from nidavelir_core.database import engine;
+          c=engine.connect(); c.execute(text("SELECT 1")); c.close()'
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   mcp:
