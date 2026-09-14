@@ -8,13 +8,15 @@ from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
 
-_log_context: ContextVar[dict[str, str]] = ContextVar("nidavelir_log_context", default={})
+_log_context: ContextVar[dict[str, str] | None] = ContextVar(
+    "nidavelir_log_context", default=None
+)
 _CONTEXT_FIELDS = ("task_id", "attempt_id", "stage", "event")
 
 
 @contextmanager
 def log_context(**fields: Any) -> Iterator[None]:
-    current = _log_context.get()
+    current = _log_context.get() or {}
     normalized = {
         key: str(value)
         for key, value in fields.items()
@@ -34,7 +36,7 @@ class NidavelirContextFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.installation_id = self.installation_id
-        context = _log_context.get()
+        context = _log_context.get() or {}
         for field in _CONTEXT_FIELDS:
             if not hasattr(record, field):
                 setattr(record, field, context.get(field, ""))
