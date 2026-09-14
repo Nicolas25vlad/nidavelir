@@ -53,6 +53,22 @@ def test_create_task_sends_normalized_payload() -> None:
     assert task["state"] == "BACKLOG"
 
 
+def test_client_sends_core_service_bearer_token() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["authorization"] == "Bearer internal-service-token"
+        return httpx.Response(200, json=[])
+
+    client = CoreClient(
+        "http://core:8000",
+        bearer_token="internal-service-token",
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        assert client.list_tasks() == []
+    finally:
+        client.close()
+
+
 def test_list_tasks_sends_supervisor_filters() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
