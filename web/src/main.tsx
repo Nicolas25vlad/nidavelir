@@ -6,6 +6,7 @@ import { App } from "./App";
 import { AuthGate } from "./components/AuthGate";
 import "./styles.css";
 import "./review.css";
+import "./auth.css";
 
 const root = document.getElementById("root");
 
