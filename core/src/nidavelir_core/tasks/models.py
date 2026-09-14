@@ -26,6 +26,7 @@ class TaskRecord(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     repository: Mapped[str] = mapped_column(String(500))
     base_branch: Mapped[str] = mapped_column(String(200), default="main")
+    profile: Mapped[str] = mapped_column(String(80), default="auto", nullable=False)
     acceptance_criteria: Mapped[list[str]] = mapped_column(JSON, default=list)
     validation_commands: Mapped[list[dict]] = mapped_column(JSON, default=list, nullable=False)
     supervisor_client: Mapped[str | None] = mapped_column(

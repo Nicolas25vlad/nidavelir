@@ -22,6 +22,7 @@ class TaskRepository:
             description=payload.description,
             repository=payload.repository,
             base_branch=payload.base_branch,
+            profile=payload.profile,
             acceptance_criteria=payload.acceptance_criteria,
             validation_commands=[command.model_dump() for command in payload.validation_commands],
             supervisor_client=payload.supervisor_client,

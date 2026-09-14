@@ -269,6 +269,7 @@ def _task_payload(task, attempt: AttemptRecord) -> str:
             "description": task.description,
             "repository": task.repository,
             "base_branch": task.base_branch,
+            "profile": task.profile,
             "acceptance_criteria": task.acceptance_criteria,
             "validation_commands": task.validation_commands,
             "context": attempt.retry_context,
