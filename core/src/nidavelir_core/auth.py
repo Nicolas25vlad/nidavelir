@@ -4,6 +4,7 @@ import hmac
 
 from fastapi import Request
 from fastapi.responses import JSONResponse, Response
+from pydantic import SecretStr
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from .settings import Settings
@@ -11,7 +12,7 @@ from .settings import Settings
 PUBLIC_PATHS = {"/health", "/ready"}
 
 
-def _secret(settings_value) -> str | None:
+def _secret(settings_value: SecretStr | None) -> str | None:
     if settings_value is None:
         return None
     value = settings_value.get_secret_value().strip()
@@ -31,7 +32,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         )
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path in PUBLIC_PATHS or not self._tokens:
+        if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS or not self._tokens:
             return await call_next(request)
 
         authorization = request.headers.get("authorization", "")
