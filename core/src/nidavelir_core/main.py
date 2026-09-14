@@ -16,7 +16,11 @@ from .tasks.router import router as tasks_router
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(
+        settings.log_level,
+        installation_id=settings.installation_id,
+        structured=settings.env not in {"development", "test"},
+    )
     cleanup_orphaned_resources()
     yield
 
