@@ -15,6 +15,11 @@ from nidavelir_core.settings import Settings, get_settings
 from nidavelir_core.tasks.domain import InvalidTaskTransition, TaskState
 from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
 
+from .harness_auth import (
+    agent_auth_environment,
+    agent_auth_volumes,
+    harness_configured,
+)
 from .models import AttemptRecord, AttemptStatus
 from .repository import AttemptNotFound, AttemptRepository
 from .validation import ValidationRepository
@@ -52,7 +57,7 @@ def _slugify(value: str) -> str:
 def _installation_namespace(settings: Settings | None = None) -> str:
     raw = (settings or get_settings()).installation_id
     namespace = re.sub(r"[^a-z0-9]+", "-", raw.lower()).strip("-")
-    return (namespace or "development")[:24].rstrip("-")
+    return (namespace or "development")[:24].rstrip("-" )
 
 
 def task_branch_name(task_id: UUID, title: str) -> str:
@@ -69,13 +74,13 @@ def _validate_harness_configuration(settings: Settings, harness: str) -> None:
         raise ExecutionConfigurationError(
             "NIDAVELIR_GITHUB_TOKEN is required to push task branches"
         )
-    if harness == "codex" and settings.openai_api_key is None:
-        raise ExecutionConfigurationError(
-            "NIDAVELIR_OPENAI_API_KEY is required for the Codex harness"
+    if not harness_configured(settings, harness):
+        env_name = (
+            "NIDAVELIR_OPENAI_API_KEY" if harness == "codex" else "NIDAVELIR_CURSOR_API_KEY"
         )
-    if harness == "cursor" and settings.cursor_api_key is None:
         raise ExecutionConfigurationError(
-            "NIDAVELIR_CURSOR_API_KEY is required for the Cursor harness"
+            f"{harness} is not authenticated; use 'nidavelir auth login {harness}' "
+            f"or configure {env_name}"
         )
 
 
@@ -147,17 +152,23 @@ def _secret_value(value) -> str:
     return value.get_secret_value() if value is not None else ""
 
 
-def _agent_environment(settings: Settings, attempt: AttemptRecord, task) -> dict[str, str]:
-    environment = {
+def _agent_environment(
+    settings: Settings,
+    attempt: AttemptRecord,
+    task,
+    *,
+    persistent_auth: bool,
+) -> dict[str, str]:
+    return {
         "NIDAVELIR_TASK_JSON": _task_payload(task, attempt),
         "NIDAVELIR_TASK_BRANCH": attempt.branch_name,
         "NIDAVELIR_HARNESS": attempt.harness,
+        **agent_auth_environment(
+            settings,
+            attempt.harness,
+            persistent_auth=persistent_auth,
+        ),
     }
-    if attempt.harness == "codex":
-        environment["OPENAI_API_KEY"] = _secret_value(settings.openai_api_key)
-    elif attempt.harness == "cursor":
-        environment["CURSOR_API_KEY"] = _secret_value(settings.cursor_api_key)
-    return environment
 
 
 def _append_stage_logs(
@@ -215,8 +226,11 @@ def _stream_agent(
     settings: Settings,
     attempt: AttemptRecord,
     environment: dict[str, str],
+    auth_volumes: dict[str, dict[str, str]],
     attempts: AttemptRepository,
 ) -> tuple[int, bool]:
+    volumes = {attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}}
+    volumes.update(auth_volumes)
     container = client.containers.run(
         settings.worker_image,
         command=["/usr/local/bin/nidavelir-run-task"],
@@ -224,7 +238,7 @@ def _stream_agent(
         detach=True,
         labels=_labels(attempt.id),
         environment=environment,
-        volumes={attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}},
+        volumes=volumes,
         **_runtime_limits(settings),
     )
     attempts.mark_running(attempt.id)
@@ -421,11 +435,18 @@ def execute_attempt(attempt_id: UUID) -> None:
                 )
                 return
 
+            auth_volumes = agent_auth_volumes(client, settings, attempt.harness)
             exit_code, timed_out = _stream_agent(
                 client,
                 settings=settings,
                 attempt=attempt,
-                environment=_agent_environment(settings, attempt, task),
+                environment=_agent_environment(
+                    settings,
+                    attempt,
+                    task,
+                    persistent_auth=bool(auth_volumes),
+                ),
+                auth_volumes=auth_volumes,
                 attempts=attempts,
             )
             result = _capture_agent_metadata(attempts, attempt.id)
