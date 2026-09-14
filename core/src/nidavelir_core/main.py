@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 
 from .auth import BearerAuthMiddleware
 from .execution.router import router as execution_router
-from .execution.service import cleanup_orphaned_resources
 from .logging import configure_logging
 from .readiness import readiness_report
 from .settings import get_settings
@@ -22,7 +21,6 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         installation_id=settings.installation_id,
         structured=settings.env not in {"development", "test"},
     )
-    cleanup_orphaned_resources()
     yield
 
 
