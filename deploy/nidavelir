@@ -63,6 +63,28 @@ set_version() {
   fi
 }
 
+core_probe() {
+  local path="$1"
+  compose exec -T core python -c '
+import sys
+import urllib.error
+import urllib.request
+
+path = sys.argv[1]
+try:
+    with urllib.request.urlopen("http://127.0.0.1:8000" + path, timeout=5) as response:
+        body = response.read().decode("utf-8")
+        print(body)
+        raise SystemExit(0 if 200 <= response.status < 300 else 1)
+except urllib.error.HTTPError as error:
+    print(error.read().decode("utf-8"), file=sys.stderr)
+    raise SystemExit(1)
+except Exception as error:
+    print(f"probe failed: {error}", file=sys.stderr)
+    raise SystemExit(1)
+' "$path"
+}
+
 cmd_update() {
   require_install
   require_write_access
@@ -105,6 +127,18 @@ cmd_status() {
   require_install
   require_docker_access
   compose ps
+}
+
+cmd_health() {
+  require_install
+  require_docker_access
+  core_probe /health
+}
+
+cmd_ready() {
+  require_install
+  require_docker_access
+  core_probe /ready
 }
 
 cmd_logs() {
@@ -160,6 +194,7 @@ cmd_doctor() {
   local failed=0
   local codex_ready=0
   local cursor_ready=0
+  local docker_ready=0
   printf 'Install dir: %s\n' "$NIDAVELIR_HOME"
   printf 'Version: %s\n' "$(current_version)"
   printf 'Operator: %s\n' "$(id -un)"
@@ -174,6 +209,7 @@ cmd_doctor() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     if docker info >/dev/null 2>&1; then
       printf 'Docker: accessible without sudo\n'
+      docker_ready=1
     else
       printf 'FAILED: Docker daemon is not accessible as %s\n' "$(id -un)"
       failed=1
@@ -249,10 +285,19 @@ cmd_doctor() {
     failed=1
   fi
 
-  if docker info >/dev/null 2>&1 && compose ps >/dev/null 2>&1; then
+  if [[ "$docker_ready" -eq 1 ]] && compose ps >/dev/null 2>&1; then
     compose ps
+    if core_probe /ready >/tmp/nidavelir-ready.$$ 2>&1; then
+      printf 'Readiness: Core dependencies ready\n'
+      rm -f /tmp/nidavelir-ready.$$
+    else
+      printf 'FAILED: Core readiness probe did not pass\n'
+      cat /tmp/nidavelir-ready.$$ >&2 || true
+      rm -f /tmp/nidavelir-ready.$$
+      failed=1
+    fi
   else
-    printf 'WARN: stack status unavailable\n'
+    printf 'WARN: stack status/readiness unavailable\n'
   fi
 
   if [[ "$failed" -eq 0 ]]; then
@@ -275,11 +320,13 @@ Usage: nidavelir <command> [args]
 Commands:
   update [version]   Pull and deploy latest or a pinned tag/SHA image tag
   status             Show service state
+  health             Query the Core liveness endpoint inside the private network
+  ready              Verify Postgres, Docker and worker-image readiness
   logs [service]     Follow logs, optionally for one service
   restart [service]  Restart the whole stack or selected service(s)
   start              Start the stack
   stop               Stop services without deleting data
-  doctor             Validate permissions, Docker, config and security readiness
+  doctor             Validate permissions, Docker, config, auth and live readiness
   operator-token     Print the Web/Core operator token for browser login
   mcp-token          Print the MCP bearer token for explicit client configuration
   version            Print configured image version
@@ -293,6 +340,8 @@ EOF
 case "${1:-}" in
   update) shift; cmd_update "$@" ;;
   status) shift; cmd_status "$@" ;;
+  health) shift; cmd_health "$@" ;;
+  ready) shift; cmd_ready "$@" ;;
   logs) shift; cmd_logs "$@" ;;
   restart) shift; cmd_restart "$@" ;;
   start) shift; cmd_start "$@" ;;
