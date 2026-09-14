@@ -43,6 +43,9 @@ export interface Task {
   base_branch: string;
   acceptance_criteria: string[];
   validation_commands: ValidationCommand[];
+  supervisor_client: string | null;
+  supervisor_session_id: string | null;
+  project_id: string | null;
   merge_commit_sha: string | null;
   state: TaskState;
   created_at: string;
@@ -69,21 +72,21 @@ export interface Attempt {
   container_name: string;
   volume_name: string;
   branch_name: string;
-  retry_context?: string;
-  retry_review_ids?: string[];
+  retry_context: string;
+  retry_review_ids: string[];
   validation_mode: "unresolved" | "configured" | "auto" | "skipped";
   validation_reason: string;
   resolved_validation_commands: ValidationCommand[];
   base_commit_sha?: string | null;
   commit_sha: string | null;
   result: Record<string, unknown> | null;
-  input_tokens?: number | null;
-  cached_input_tokens?: number | null;
-  cache_write_input_tokens?: number | null;
-  output_tokens?: number | null;
-  reasoning_tokens?: number | null;
-  total_tokens?: number | null;
-  cache_hit_ratio?: number | null;
+  input_tokens: number | null;
+  cached_input_tokens: number | null;
+  cache_write_input_tokens: number | null;
+  output_tokens: number | null;
+  reasoning_tokens: number | null;
+  total_tokens: number | null;
+  cache_hit_ratio: number | null;
   exit_code: number | null;
   failure_reason: string | null;
   started_at: string | null;
@@ -114,7 +117,7 @@ export interface ValidationCheck {
   name: string;
   check_type: string;
   command: string;
-  status: "PENDING" | "RUNNING" | "PASSED" | "FAILED" | "TIMED_OUT";
+  status: "PENDING" | "RUNNING" | "PASSED" | "FAILED" | "TIMED_OUT" | "SKIPPED";
   exit_code: number | null;
   output: string;
   started_at: string | null;
@@ -145,6 +148,9 @@ export interface CreateTaskInput {
   base_branch?: string;
   acceptance_criteria?: string[];
   validation_commands?: ValidationCommand[];
+  supervisor_client?: string;
+  supervisor_session_id?: string;
+  project_id?: string;
 }
 
 export class ApiError extends Error {
