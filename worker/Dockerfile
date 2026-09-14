@@ -19,8 +19,8 @@ RUN apt-get update \
 
 RUN groupadd --gid 10001 nidavelir \
     && useradd --uid 10001 --gid 10001 --create-home --shell /bin/bash nidavelir \
-    && mkdir -p /workspace/repo \
-    && chown -R nidavelir:nidavelir /workspace
+    && mkdir -p /workspace/repo /home/nidavelir/.codex /home/nidavelir/.cursor \
+    && chown -R nidavelir:nidavelir /workspace /home/nidavelir/.codex /home/nidavelir/.cursor
 
 USER nidavelir
 RUN curl -fsSL https://cursor.com/install | bash
@@ -62,6 +62,7 @@ WORKDIR /workspace/repo
 
 ENV HOME=/home/nidavelir \
     PATH=/home/nidavelir/.local/bin:$PATH \
+    CURSOR_CONFIG_DIR=/home/nidavelir/.cursor \
     NIDAVELIR_WORKSPACE=/workspace/repo \
     NIDAVELIR_PROFILES_FILE=/usr/local/lib/nidavelir-worker/profiles.json \
     NIDAVELIR_SKILL_STORE=/opt/nidavelir/skill-store \
