@@ -1,13 +1,32 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 
 import { ApiError, api } from "../lib/api";
 
 export function AuthGate({ children }: { children: ReactNode }) {
-  const [authenticated, setAuthenticated] = useState(Boolean(api.getOperatorToken()));
+  const [authenticated, setAuthenticated] = useState(false);
+  const [checking, setChecking] = useState(Boolean(api.getOperatorToken()));
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!api.getOperatorToken()) return;
+    let active = true;
+    void api.verifyOperatorToken()
+      .then(() => {
+        if (active) setAuthenticated(true);
+      })
+      .catch(() => {
+        api.clearOperatorToken();
+      })
+      .finally(() => {
+        if (active) setChecking(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const login = async (event: FormEvent) => {
     event.preventDefault();
@@ -38,6 +57,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setAuthenticated(false);
     setToken("");
   };
+
+  if (checking) {
+    return <main className="auth-shell"><span className="muted">Checking operator session…</span></main>;
+  }
 
   if (!authenticated) {
     return (
