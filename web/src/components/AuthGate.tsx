@@ -1,4 +1,5 @@
-import { FormEvent, ReactNode, useState } from "react";
+import { useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 
 import { ApiError, api } from "../lib/api";
 
