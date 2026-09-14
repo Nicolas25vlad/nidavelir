@@ -1,0 +1,43 @@
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border, #27272a);
+  border-radius: 0.75rem;
+  background: var(--panel, #111113);
+}
+
+.auth-card h1,
+.auth-card p {
+  margin: 0;
+}
+
+.auth-card label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.auth-card small {
+  color: var(--muted, #a1a1aa);
+}
+
+.operator-logout {
+  position: fixed;
+  z-index: 50;
+  right: 1rem;
+  bottom: 1rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border, #27272a);
+  border-radius: 0.5rem;
+  background: var(--panel, #111113);
+  color: inherit;
+  cursor: pointer;
+}

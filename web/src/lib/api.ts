@@ -1,4 +1,5 @@
 const defaultBaseUrl = "/api";
+const operatorTokenKey = "nidavelir.operator-token";
 
 export type TaskState =
   | "BACKLOG"
@@ -167,6 +168,18 @@ export class ApiError extends Error {
 export class NidavelirApi {
   constructor(private readonly baseUrl = import.meta.env.VITE_NIDAVELIR_API_URL ?? defaultBaseUrl) {}
 
+  getOperatorToken(): string {
+    return window.sessionStorage.getItem(operatorTokenKey) ?? "";
+  }
+
+  setOperatorToken(token: string): void {
+    window.sessionStorage.setItem(operatorTokenKey, token.trim());
+  }
+
+  clearOperatorToken(): void {
+    window.sessionStorage.removeItem(operatorTokenKey);
+  }
+
   private resolveUrl(path: string): string {
     const base = this.baseUrl.replace(/\/+$/, "");
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -180,10 +193,12 @@ export class NidavelirApi {
     path: string,
     options: { body?: unknown; signal?: AbortSignal } = {},
   ): Promise<T> {
+    const operatorToken = this.getOperatorToken();
     const response = await fetch(this.resolveUrl(path), {
       method,
       headers: {
         Accept: "application/json",
+        ...(operatorToken ? { Authorization: `Bearer ${operatorToken}` } : {}),
         ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -207,6 +222,10 @@ export class NidavelirApi {
 
   get<T>(path: string, signal?: AbortSignal): Promise<T> {
     return this.request<T>("GET", path, { signal });
+  }
+
+  verifyOperatorToken(): Promise<Harness[]> {
+    return this.listHarnesses();
   }
 
   listHarnesses(signal?: AbortSignal): Promise<Harness[]> {

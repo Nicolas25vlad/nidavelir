@@ -21,6 +21,9 @@ class Settings(BaseSettings):
         "http://localhost:5173",
     ]
 
+    operator_token: SecretStr | None = None
+    service_token: SecretStr | None = None
+
     worker_image: str = "nidavelir-worker:dev"
     worker_cpus: float = 1.0
     worker_memory: str = "2g"

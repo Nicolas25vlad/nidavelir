@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .auth import BearerAuthMiddleware
 from .execution.router import router as execution_router
 from .execution.service import cleanup_orphaned_resources
 from .logging import configure_logging
@@ -38,6 +39,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(BearerAuthMiddleware, settings=settings)
 app.include_router(tasks_router)
 app.include_router(execution_router)
 

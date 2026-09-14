@@ -25,12 +25,15 @@ class CoreClient:
         base_url: str,
         *,
         timeout_seconds: float = 30.0,
+        bearer_token: str | None = None,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
+        headers = {"Authorization": f"Bearer {bearer_token}"} if bearer_token else None
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
             timeout=timeout_seconds,
             transport=transport,
+            headers=headers,
         )
 
     def close(self) -> None:
