@@ -6,6 +6,25 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .domain import TaskState
 
+AgentProfile = Literal[
+    "auto",
+    "generic",
+    "frontend-web",
+    "backend",
+    "fullstack",
+    "devops",
+    "qa",
+    "database",
+    "android-xml",
+    "android-compose",
+    "design",
+    "docs",
+    "frontend",
+    "infra",
+    "testing",
+    "android",
+]
+
 
 class ValidationCommand(BaseModel):
     name: str = Field(min_length=1, max_length=160)
@@ -19,6 +38,7 @@ class TaskCreate(BaseModel):
     description: str = ""
     repository: str = Field(min_length=1, max_length=500)
     base_branch: str = Field(default="main", min_length=1, max_length=200)
+    profile: AgentProfile = "auto"
     acceptance_criteria: list[str] = Field(default_factory=list, max_length=100)
     validation_commands: list[ValidationCommand] = Field(default_factory=list, max_length=50)
     supervisor_client: str | None = Field(default=None, min_length=1, max_length=80)
@@ -31,6 +51,7 @@ class TaskUpdate(BaseModel):
     description: str | None = None
     repository: str | None = Field(default=None, min_length=1, max_length=500)
     base_branch: str | None = Field(default=None, min_length=1, max_length=200)
+    profile: AgentProfile | None = None
     acceptance_criteria: list[str] | None = Field(default=None, max_length=100)
     validation_commands: list[ValidationCommand] | None = Field(default=None, max_length=50)
     supervisor_client: str | None = Field(default=None, min_length=1, max_length=80)
@@ -89,6 +110,7 @@ class TaskRead(BaseModel):
     description: str
     repository: str
     base_branch: str
+    profile: str
     acceptance_criteria: list[str]
     validation_commands: list[ValidationCommand]
     supervisor_client: str | None
