@@ -28,9 +28,15 @@ mcp = MCPServer(
 @lru_cache
 def get_core_client() -> CoreClient:
     settings = get_settings()
+    service_token = (
+        settings.core_service_token.get_secret_value()
+        if settings.core_service_token is not None
+        else None
+    )
     return CoreClient(
         settings.core_url,
         timeout_seconds=settings.request_timeout_seconds,
+        bearer_token=service_token,
     )
 
 
