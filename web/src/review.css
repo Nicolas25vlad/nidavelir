@@ -1,0 +1,53 @@
+.review-context {
+  display: grid;
+  gap: 1rem;
+}
+
+.review-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--danger, #ef4444) 55%, transparent);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--danger, #ef4444) 10%, transparent);
+}
+
+.review-warning strong {
+  flex: 0 0 auto;
+  letter-spacing: 0.08em;
+}
+
+.review-warning span {
+  color: var(--muted, #a1a1aa);
+}
+
+.review-context__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.review-context__grid > section,
+.review-context__retry {
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid var(--border, #27272a);
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--panel, #111113) 92%, transparent);
+}
+
+.review-context h3 {
+  margin: 0 0 0.65rem;
+}
+
+.review-context__retry p {
+  margin: 0 0 0.45rem;
+  white-space: pre-wrap;
+}
+
+.mono-wrap {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
+}

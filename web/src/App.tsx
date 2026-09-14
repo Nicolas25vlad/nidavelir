@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
 
 import { AsyncState } from "./components/AsyncState";
+import { ReviewContext } from "./components/ReviewContext";
 import {
   ApiError,
   api,
@@ -368,6 +369,8 @@ function TaskDetail() {
       {selected && !selected.configured && canStart && (
         <AsyncState kind="error" title={`${selected.display_name} is not configured`} detail={`Set ${selected.credential_env} on the server before starting this harness.`} />
       )}
+
+      <ReviewContext task={task} attempt={latest} checks={checks} />
 
       <div className="detail-grid">
         <article className="detail-panel">
