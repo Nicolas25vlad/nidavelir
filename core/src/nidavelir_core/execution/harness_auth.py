@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import docker
@@ -13,11 +14,16 @@ AUTH_MOUNTS = {
 }
 
 
+def _namespace(settings: Settings) -> str:
+    namespace = re.sub(r"[^a-z0-9]+", "-", settings.installation_id.lower()).strip("-")
+    return (namespace or "development")[:24].rstrip("-")
+
+
 def auth_volume_name(settings: Settings, harness: str) -> str:
     if harness == "codex":
-        return settings.codex_auth_volume
+        return settings.codex_auth_volume or f"nidavelir-{_namespace(settings)}-codex-auth"
     if harness == "cursor":
-        return settings.cursor_auth_volume
+        return settings.cursor_auth_volume or f"nidavelir-{_namespace(settings)}-cursor-auth"
     raise ValueError(f"unsupported harness {harness!r}")
 
 
