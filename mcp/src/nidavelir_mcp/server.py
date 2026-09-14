@@ -65,13 +65,14 @@ def create_task(
     repository: str,
     description: str = "",
     base_branch: str = "main",
+    profile: str = "auto",
     acceptance_criteria: list[str] | None = None,
     validation_commands: list[dict[str, Any]] | None = None,
     supervisor_client: str | None = None,
     supervisor_session_id: str | None = None,
     project_id: str | None = None,
 ) -> dict[str, Any]:
-    """Create a durable task, optionally stamped with non-secret supervisor metadata."""
+    """Create a durable task with optional supervisor metadata and profile override."""
     return _call(
         "create_task",
         lambda: get_core_client().create_task(
@@ -79,6 +80,7 @@ def create_task(
             repository=repository,
             description=description,
             base_branch=base_branch,
+            profile=profile,
             acceptance_criteria=acceptance_criteria,
             validation_commands=validation_commands,
             supervisor_client=supervisor_client,
@@ -118,10 +120,11 @@ def update_task(
     description: str | None = None,
     repository: str | None = None,
     base_branch: str | None = None,
+    profile: str | None = None,
     acceptance_criteria: list[str] | None = None,
     validation_commands: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Update mutable task fields without bypassing lifecycle state."""
+    """Update mutable task fields, including profile override, without changing lifecycle."""
     changes = {
         key: value
         for key, value in {
@@ -129,6 +132,7 @@ def update_task(
             "description": description,
             "repository": repository,
             "base_branch": base_branch,
+            "profile": profile,
             "acceptance_criteria": acceptance_criteria,
             "validation_commands": validation_commands,
         }.items()
