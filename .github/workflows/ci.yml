@@ -216,6 +216,8 @@ jobs:
           NIDAVELIR_COMPOSE_PROJECT_NAME: nidavelir-ci
           NIDAVELIR_POSTGRES_PASSWORD: test-password
           NIDAVELIR_DATABASE_URL: postgresql+psycopg://nidavelir:test-password@postgres:5432/nidavelir
+          NIDAVELIR_OPERATOR_TOKEN: test-operator-token-that-is-long-enough
+          NIDAVELIR_SERVICE_TOKEN: test-service-token-that-is-long-enough
           NIDAVELIR_GITHUB_TOKEN: test-token
           NIDAVELIR_OPENAI_API_KEY: test-key
           NIDAVELIR_MCP_AUTH_TOKEN: test-mcp-token-that-is-long-enough-for-ci
