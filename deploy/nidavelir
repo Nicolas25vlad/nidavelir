@@ -63,6 +63,195 @@ set_version() {
   fi
 }
 
+installation_namespace() {
+  local raw
+  raw="$(env_value NIDAVELIR_INSTALLATION_ID)"
+  [[ -n "$raw" ]] || raw="development"
+  printf '%s' "$raw" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' \
+    | cut -c1-24
+}
+
+worker_docker() {
+  local socket
+  socket="$(env_value NIDAVELIR_DOCKER_SOCKET)"
+  [[ -n "$socket" ]] || socket="/var/run/docker.sock"
+  docker --host "unix://$socket" "$@"
+}
+
+worker_image() {
+  local version
+  version="$(current_version)"
+  [[ -n "$version" ]] || version="latest"
+  printf 'ghcr.io/nicolas25vlad/nidavelir-worker:%s\n' "$version"
+}
+
+auth_volume() {
+  local harness="$1"
+  local configured namespace
+  namespace="$(installation_namespace)"
+  case "$harness" in
+    codex)
+      configured="$(env_value NIDAVELIR_CODEX_AUTH_VOLUME)"
+      printf '%s\n' "${configured:-nidavelir-${namespace}-codex-auth}"
+      ;;
+    cursor)
+      configured="$(env_value NIDAVELIR_CURSOR_AUTH_VOLUME)"
+      printf '%s\n' "${configured:-nidavelir-${namespace}-cursor-auth}"
+      ;;
+    *) fatal "unsupported harness '$harness' (expected codex or cursor)" ;;
+  esac
+}
+
+auth_mount() {
+  case "$1" in
+    codex) printf '%s\n' '/home/nidavelir/.codex' ;;
+    cursor) printf '%s\n' '/home/nidavelir/.cursor' ;;
+    *) fatal "unsupported harness '$1' (expected codex or cursor)" ;;
+  esac
+}
+
+auth_volume_exists() {
+  worker_docker volume inspect "$(auth_volume "$1")" >/dev/null 2>&1
+}
+
+ensure_auth_volume() {
+  local harness="$1"
+  local volume namespace
+  volume="$(auth_volume "$harness")"
+  namespace="$(installation_namespace)"
+  if ! worker_docker volume inspect "$volume" >/dev/null 2>&1; then
+    worker_docker volume create \
+      --label io.nidavelir.auth=true \
+      --label "io.nidavelir.installation=$namespace" \
+      "$volume" >/dev/null
+  fi
+}
+
+run_harness_auth() {
+  local harness="$1"
+  local interactive="$2"
+  shift 2
+  local volume mount image
+  volume="$(auth_volume "$harness")"
+  mount="$(auth_mount "$harness")"
+  image="$(worker_image)"
+
+  local tty_args=()
+  if [[ "$interactive" == "interactive" ]]; then
+    tty_args=(-it)
+  fi
+
+  worker_docker run --rm "${tty_args[@]}" \
+    --user 10001:10001 \
+    -e HOME=/home/nidavelir \
+    -e CURSOR_CONFIG_DIR=/home/nidavelir/.cursor \
+    -v "$volume:$mount" \
+    "$image" "$@"
+}
+
+cmd_auth_login() {
+  require_install
+  require_docker_access
+  local harness="${1:-}"
+  [[ "$harness" == "codex" || "$harness" == "cursor" ]] \
+    || fatal "usage: nidavelir auth login <codex|cursor>"
+
+  local image
+  image="$(worker_image)"
+  printf 'Pulling worker image %s on the worker Docker daemon...\n' "$image"
+  worker_docker pull "$image" >/dev/null
+  ensure_auth_volume "$harness"
+
+  case "$harness" in
+    codex)
+      run_harness_auth codex interactive codex login
+      ;;
+    cursor)
+      worker_docker run --rm -it \
+        --user 10001:10001 \
+        -e HOME=/home/nidavelir \
+        -e CURSOR_CONFIG_DIR=/home/nidavelir/.cursor \
+        -e NO_OPEN_BROWSER=1 \
+        -v "$(auth_volume cursor):$(auth_mount cursor)" \
+        "$image" agent login
+      ;;
+  esac
+
+  printf '\nPersistent %s login stored in Docker volume %s\n' \
+    "$harness" "$(auth_volume "$harness")"
+}
+
+cmd_auth_status_one() {
+  local harness="$1"
+  if ! auth_volume_exists "$harness"; then
+    printf '%s: no persistent login volume\n' "$harness"
+    return 1
+  fi
+  case "$harness" in
+    codex)
+      if run_harness_auth codex noninteractive codex login status >/dev/null 2>&1; then
+        printf 'codex: persistent login ready (%s)\n' "$(auth_volume codex)"
+        return 0
+      fi
+      ;;
+    cursor)
+      if run_harness_auth cursor noninteractive agent status >/dev/null 2>&1; then
+        printf 'cursor: persistent login ready (%s)\n' "$(auth_volume cursor)"
+        return 0
+      fi
+      ;;
+  esac
+  printf '%s: auth volume exists but CLI reports no valid login\n' "$harness"
+  return 1
+}
+
+cmd_auth_status() {
+  require_install
+  require_docker_access
+  local harness="${1:-}"
+  if [[ -n "$harness" ]]; then
+    [[ "$harness" == "codex" || "$harness" == "cursor" ]] \
+      || fatal "usage: nidavelir auth status [codex|cursor]"
+    cmd_auth_status_one "$harness"
+    return
+  fi
+
+  local failed=0
+  cmd_auth_status_one codex || failed=1
+  cmd_auth_status_one cursor || failed=1
+  return "$failed"
+}
+
+cmd_auth_logout() {
+  require_install
+  require_docker_access
+  local harness="${1:-}"
+  [[ "$harness" == "codex" || "$harness" == "cursor" ]] \
+    || fatal "usage: nidavelir auth logout <codex|cursor>"
+
+  if auth_volume_exists "$harness"; then
+    case "$harness" in
+      codex) run_harness_auth codex noninteractive codex logout >/dev/null 2>&1 || true ;;
+      cursor) run_harness_auth cursor noninteractive agent logout >/dev/null 2>&1 || true ;;
+    esac
+    worker_docker volume rm "$(auth_volume "$harness")" >/dev/null
+  fi
+  printf '%s persistent login removed\n' "$harness"
+}
+
+cmd_auth() {
+  local action="${1:-status}"
+  shift || true
+  case "$action" in
+    login) cmd_auth_login "$@" ;;
+    status) cmd_auth_status "$@" ;;
+    logout) cmd_auth_logout "$@" ;;
+    *) fatal "usage: nidavelir auth <login|status|logout> [codex|cursor]" ;;
+  esac
+}
+
 core_probe() {
   local path="$1"
   compose exec -T core python -c '
@@ -234,19 +423,25 @@ cmd_doctor() {
   if grep -q '^NIDAVELIR_OPENAI_API_KEY=.' "$ENV_FILE"; then
     codex_ready=1
     printf 'Harness: Codex API-key auth configured\n'
+  elif auth_volume_exists codex; then
+    codex_ready=1
+    printf 'Harness: Codex persistent login volume present\n'
   else
-    printf 'Harness: Codex API-key auth not configured\n'
+    printf 'Harness: Codex auth not configured\n'
   fi
 
   if grep -q '^NIDAVELIR_CURSOR_API_KEY=.' "$ENV_FILE"; then
     cursor_ready=1
     printf 'Harness: Cursor API-key auth configured\n'
+  elif auth_volume_exists cursor; then
+    cursor_ready=1
+    printf 'Harness: Cursor persistent login volume present\n'
   else
-    printf 'Harness: Cursor API-key auth not configured\n'
+    printf 'Harness: Cursor auth not configured\n'
   fi
 
   if [[ "$codex_ready" -eq 0 && "$cursor_ready" -eq 0 ]]; then
-    printf 'WARN: no API-key harness auth configured; browser-login auth may be configured separately\n'
+    printf 'WARN: no coding harness authentication is configured\n'
   fi
 
   local operator_token service_token mcp_token mcp_bind mcp_resource
@@ -326,6 +521,9 @@ Commands:
   restart [service]  Restart the whole stack or selected service(s)
   start              Start the stack
   stop               Stop services without deleting data
+  auth login <h>     Log Codex/Cursor in once and persist only that harness session
+  auth status [h]    Check persistent Codex/Cursor login state
+  auth logout <h>    Remove one persistent harness login and its Docker volume
   doctor             Validate permissions, Docker, config, auth and live readiness
   operator-token     Print the Web/Core operator token for browser login
   mcp-token          Print the MCP bearer token for explicit client configuration
@@ -346,6 +544,7 @@ case "${1:-}" in
   restart) shift; cmd_restart "$@" ;;
   start) shift; cmd_start "$@" ;;
   stop) shift; cmd_stop "$@" ;;
+  auth) shift; cmd_auth "$@" ;;
   doctor) shift; cmd_doctor "$@" ;;
   operator-token) shift; cmd_operator_token "$@" ;;
   mcp-token) shift; cmd_mcp_token "$@" ;;
