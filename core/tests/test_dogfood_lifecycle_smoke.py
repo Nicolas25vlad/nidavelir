@@ -154,7 +154,7 @@ def test_full_durable_lifecycle_reaches_controlled_merge(session_factory, monkey
                 assert payload == {
                     "base": "main",
                     "head": "head123",
-                    "commit_message": "Nidavelir task: Dogfood lifecycle smoke",
+                    "commit_message": f"Nidavelir task {task.id}: Dogfood lifecycle smoke",
                 }
                 return {"sha": "merge456"}
             raise AssertionError((method, path, payload, allow_no_content))
@@ -169,8 +169,11 @@ def test_full_durable_lifecycle_reaches_controlled_merge(session_factory, monkey
         assert merge_sha == "merge456"
         assert persisted_task.state == TaskState.CLOSED
         assert persisted_task.merge_commit_sha == "merge456"
+        assert persisted_task.profile == "backend"
+        assert persisted_task.supervisor_session_id == "dogfood-smoke"
         assert persisted_attempt.status == AttemptStatus.SUCCEEDED
-        assert persisted_attempt.profile if hasattr(persisted_attempt, "profile") else True
+        assert persisted_attempt.result["profile"] == "backend"
+        assert persisted_attempt.result["skills"] == ["ponytail", "fastapi"]
         assert persisted_attempt.total_tokens == 150
         assert persisted_attempt.validation_mode == "configured"
         assert persisted_attempt.diff_patch.startswith("diff --git")
