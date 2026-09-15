@@ -9,6 +9,8 @@
 !run-check.sh
 !detect-validation.sh
 !test-validation-detector.sh
+!extract-cursor-usage.sh
+!test-cursor-usage.sh
 !install-skills.sh
 !resolve-profile.sh
 !validate-profiles.sh
