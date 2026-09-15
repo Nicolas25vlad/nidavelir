@@ -29,7 +29,15 @@ def _apply_token_usage(attempt: AttemptRecord, usage: dict, *, model: str | None
         usage.get("reasoning_output_tokens", usage.get("reasoning_tokens"))
     )
     total_tokens = _optional_non_negative_int(usage.get("total_tokens"))
-    if total_tokens is None and input_tokens is not None and output_tokens is not None:
+    # Backwards-compatible fallback for older result payloads that never carried a
+    # total_tokens field. An explicit null means the provider reported partial usage
+    # and the total is intentionally unknown; inferring input + output could undercount
+    # additive cache categories such as Cursor cache reads/writes.
+    if (
+        "total_tokens" not in usage
+        and input_tokens is not None
+        and output_tokens is not None
+    ):
         total_tokens = input_tokens + output_tokens
 
     attempt.input_tokens = input_tokens
