@@ -36,6 +36,7 @@ COPY --chown=root:root \
     run-check.sh \
     detect-validation.sh \
     test-validation-detector.sh \
+    extract-cursor-usage.sh \
     install-skills.sh \
     resolve-profile.sh \
     validate-profiles.sh \
@@ -55,6 +56,7 @@ RUN chmod 0555 /usr/local/lib/nidavelir-worker/*.sh \
     && ln -s /usr/local/lib/nidavelir-worker/capture-diff.sh /usr/local/bin/nidavelir-capture-diff \
     && ln -s /usr/local/lib/nidavelir-worker/run-check.sh /usr/local/bin/nidavelir-run-check \
     && ln -s /usr/local/lib/nidavelir-worker/detect-validation.sh /usr/local/bin/nidavelir-detect-validation \
+    && ln -s /usr/local/lib/nidavelir-worker/extract-cursor-usage.sh /usr/local/bin/nidavelir-extract-cursor-usage \
     && ln -s /usr/local/lib/nidavelir-worker/resolve-profile.sh /usr/local/bin/nidavelir-resolve-profile
 
 USER nidavelir
