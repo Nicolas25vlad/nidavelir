@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     core_url: str = "http://127.0.0.1:8000"
     core_service_token: SecretStr | None = None
+    github_token: SecretStr | None = None
     transport: Literal["stdio", "streamable-http"] = "stdio"
     host: str = "127.0.0.1"
     port: int = 8001
