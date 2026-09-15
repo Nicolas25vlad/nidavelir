@@ -8,6 +8,7 @@ from mcp.server import MCPServer
 
 from .auth import server_auth_kwargs
 from .client import CoreAPIError, CoreClient
+from .github_issues import GitHubIssueError, fetch_github_issue
 from .settings import get_settings
 
 _settings = get_settings()
@@ -53,6 +54,17 @@ def _call(operation: str, fn: Callable[[], Any]) -> dict[str, Any]:
         }
 
 
+def _github_error(operation: str, error: GitHubIssueError) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": {
+            "operation": operation,
+            "status": 422,
+            "detail": str(error),
+        },
+    }
+
+
 @mcp.tool()
 def list_harnesses() -> dict[str, Any]:
     """List installed worker harnesses, capabilities and credential readiness."""
@@ -78,6 +90,51 @@ def create_task(
         lambda: get_core_client().create_task(
             title=title,
             repository=repository,
+            description=description,
+            base_branch=base_branch,
+            profile=profile,
+            acceptance_criteria=acceptance_criteria,
+            validation_commands=validation_commands,
+            supervisor_client=supervisor_client,
+            supervisor_session_id=supervisor_session_id,
+            project_id=project_id,
+        ),
+    )
+
+
+@mcp.tool()
+def create_task_from_github_issue(
+    issue: str,
+    base_branch: str = "main",
+    profile: str = "auto",
+    acceptance_criteria: list[str] | None = None,
+    validation_commands: list[dict[str, Any]] | None = None,
+    supervisor_client: str | None = None,
+    supervisor_session_id: str | None = None,
+    project_id: str | None = None,
+) -> dict[str, Any]:
+    """Import a GitHub issue into a durable task without coupling source and worker harness."""
+    settings = get_settings()
+    token = settings.github_token.get_secret_value() if settings.github_token is not None else None
+    try:
+        source = fetch_github_issue(
+            issue,
+            token=token,
+            timeout_seconds=settings.request_timeout_seconds,
+        )
+    except GitHubIssueError as error:
+        return _github_error("create_task_from_github_issue", error)
+
+    description_parts = [f"Source GitHub issue: {source.url}"]
+    if source.body.strip():
+        description_parts.extend(["", source.body.strip()])
+    description = "\n".join(description_parts)
+
+    return _call(
+        "create_task_from_github_issue",
+        lambda: get_core_client().create_task(
+            title=source.title,
+            repository=source.repository_full_name,
             description=description,
             base_branch=base_branch,
             profile=profile,
