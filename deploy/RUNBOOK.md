@@ -78,18 +78,19 @@ http://127.0.0.1:8001/mcp
 
 For a remote supervisor, tunnel the port or publish it only behind HTTPS/firewall controls. A Codex/Cursor/Claude/ChatGPT client is a **supervisor**. The Codex/Cursor CLI inside a Nidavelir worker is a **worker harness**; these choices are independent.
 
-## 6. Create a task
+## 6. Create a task from a real issue
 
-For Nidavelir itself, use repository `Nicolas25vlad/nidavelir`. The repository now carries `.nidavelir.json`, so deterministic Core/MCP/Web checks are selected before heuristic validation.
+For Nidavelir itself, use `create_task_from_github_issue` through MCP with a reference such as:
 
-A good first task is intentionally small and reversible. Include:
+```text
+Nicolas25vlad/nidavelir#145
+```
 
-- one clear outcome;
-- concrete acceptance criteria;
-- no unrelated refactor request;
-- an explicit profile when the auto-router could reasonably be ambiguous.
+or the full issue URL. The tool imports the issue title/body into a normal durable task and preserves the source issue URL in the task description. Public issues do not require an additional token; private repositories use the configured GitHub control-plane credential.
 
-Until GitHub issue import (#132) lands, create the durable task from Web/MCP and copy only the useful issue context rather than an entire discussion thread.
+The imported task is not tied to a worker harness. Choose Codex/Cursor independently when starting it, and use an explicit profile when the auto-router could reasonably be ambiguous.
+
+The repository carries `.nidavelir.json`, so deterministic Nidavelir validation defaults are selected before heuristic validation. Do not copy entire GitHub discussion threads into the task merely because they exist; keep context relevant to execution.
 
 ## 7. Start and observe
 
@@ -132,6 +133,8 @@ If the result is wrong, reject it with concise actionable feedback. Nidavelir st
 
 If the result is correct, approve it first, then merge the reviewed commit. Merge verifies that the reviewed branch SHA has not moved.
 
+Importing a GitHub issue does **not** automatically close it. Keep GitHub issue lifecycle changes explicit until the dogfood loop proves the desired closing/linking policy.
+
 ## 10. Restart test
 
 Before trusting the appliance for unattended work, deliberately exercise the recovery boundary with a non-critical task:
@@ -149,15 +152,15 @@ nidavelir logs core
 nidavelir doctor
 ```
 
-## 11. Weekend dogfood gate
+## 11. Dogfood gate
 
-The current milestone is not “one task worked once”. Record three real Nidavelir issues that complete this loop without manual intervention inside workers:
+The current milestone is not “one task worked once”. Track the proof in GitHub issue #145 and record three real Nidavelir issues that complete this loop without manual intervention inside workers:
 
 ```text
-create/import -> queue -> execute -> validate -> review -> merge or deliberate retry
+GitHub issue -> import -> queue -> execute -> validate -> Web review -> merge or deliberate retry
 ```
 
-For every failure, keep the task/attempt ID and exact stage. Fix the orchestration failure before increasing autonomy or parallelism.
+At least one of the three runs should exercise the Core restart/recovery boundary. For every failure, keep the task/attempt ID and exact stage, then create/link a GitHub issue for the product failure before increasing autonomy or parallelism.
 
 ## Fast failure checklist
 
