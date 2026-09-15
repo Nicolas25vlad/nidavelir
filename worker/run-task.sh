@@ -83,10 +83,13 @@ case "$harness" in
   cursor)
     harness_version="$(agent --version | head -n 1)"
     printf 'NIDAVELIR_HARNESS_VERSION=%s\n' "$harness_version"
+    cursor_output="$(mktemp)"
     set +e
-    agent -p "$prompt" --output-format json --force
-    exit_code=$?
+    agent -p "$prompt" --output-format json --force | tee "$cursor_output"
+    exit_code=${PIPESTATUS[0]}
     set -e
+    usage_json="$(nidavelir-extract-cursor-usage "$cursor_output")"
+    rm -f "$cursor_output"
     ;;
   *)
     printf 'Unsupported Nidavelir harness: %s\n' "$harness" >&2
