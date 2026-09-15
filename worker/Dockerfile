@@ -36,6 +36,8 @@ COPY --chown=root:root \
     run-check.sh \
     detect-validation.sh \
     test-validation-detector.sh \
+    extract-cursor-usage.sh \
+    test-cursor-usage.sh \
     install-skills.sh \
     resolve-profile.sh \
     validate-profiles.sh \
@@ -45,6 +47,7 @@ COPY --chown=root:root \
 
 RUN chmod 0555 /usr/local/lib/nidavelir-worker/*.sh \
     && /usr/local/lib/nidavelir-worker/test-validation-detector.sh \
+    && /usr/local/lib/nidavelir-worker/test-cursor-usage.sh \
     && /usr/local/lib/nidavelir-worker/validate-profiles.sh \
     && /usr/local/lib/nidavelir-worker/install-skills.sh \
     && ln -s /usr/local/lib/nidavelir-worker/entrypoint.sh /usr/local/bin/nidavelir-worker \
@@ -55,6 +58,7 @@ RUN chmod 0555 /usr/local/lib/nidavelir-worker/*.sh \
     && ln -s /usr/local/lib/nidavelir-worker/capture-diff.sh /usr/local/bin/nidavelir-capture-diff \
     && ln -s /usr/local/lib/nidavelir-worker/run-check.sh /usr/local/bin/nidavelir-run-check \
     && ln -s /usr/local/lib/nidavelir-worker/detect-validation.sh /usr/local/bin/nidavelir-detect-validation \
+    && ln -s /usr/local/lib/nidavelir-worker/extract-cursor-usage.sh /usr/local/bin/nidavelir-extract-cursor-usage \
     && ln -s /usr/local/lib/nidavelir-worker/resolve-profile.sh /usr/local/bin/nidavelir-resolve-profile
 
 USER nidavelir
