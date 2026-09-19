@@ -260,7 +260,7 @@ run_auth_status() {
       docker run --rm -e CODEX_HOME="$mount" -v "$volume:$mount" "$image" codex -c 'cli_auth_credentials_store="file"' login status
       ;;
     cursor)
-      docker run --rm -e CURSOR_CONFIG_DIR="$mount" -v "$volume:$mount" "$image" agent status
+      docker run --rm -v "$volume:$mount" "$image" agent status
       ;;
   esac
 }
@@ -286,7 +286,7 @@ cmd_auth_login() {
   if [[ "$harness" == "codex" ]]; then
     docker run --rm "${tty_args[@]}" -e CODEX_HOME="$mount" -v "$volume:$mount" "$image" codex -c 'cli_auth_credentials_store="file"' login --device-auth
   else
-    docker run --rm "${tty_args[@]}" -e NO_OPEN_BROWSER=1 -e CURSOR_CONFIG_DIR="$mount" -v "$volume:$mount" "$image" agent login
+    docker run --rm "${tty_args[@]}" -e NO_OPEN_BROWSER=1 -v "$volume:$mount" "$image" agent login
   fi
   local login_code=$?
   set -e
@@ -330,7 +330,7 @@ cmd_auth_logout() {
   if [[ "$harness" == "codex" ]]; then
     docker run --rm -e CODEX_HOME="$mount" -v "$volume:$mount" "$image" codex -c 'cli_auth_credentials_store="file"' logout || true
   else
-    docker run --rm -e CURSOR_CONFIG_DIR="$mount" -v "$volume:$mount" "$image" agent logout || true
+    docker run --rm -v "$volume:$mount" "$image" agent logout || true
   fi
   docker volume rm -f "$volume" >/dev/null
   printf '%s persistent login removed.\n' "$harness"
