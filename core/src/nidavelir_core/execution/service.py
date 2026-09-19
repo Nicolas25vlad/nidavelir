@@ -11,6 +11,7 @@ from docker.errors import APIError, DockerException, NotFound
 from sqlalchemy.orm import Session
 
 from nidavelir_core.database import SessionLocal
+from nidavelir_core.logging import log_context
 from nidavelir_core.settings import Settings, get_settings
 from nidavelir_core.tasks.domain import InvalidTaskTransition, TaskState
 from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
@@ -187,8 +188,9 @@ def _run_helper(
     environment: dict[str, str],
     user: str | None = None,
 ) -> tuple[int, str]:
-    container = client.containers.run(
-        settings.worker_image,
+    with log_context(attempt_id=attempt.id, stage=suffix, event="helper_container"):
+        container = client.containers.run(
+            settings.worker_image,
         command=[command],
         name=f"{attempt.container_name}-{suffix}",
         detach=True,
@@ -196,10 +198,11 @@ def _run_helper(
         environment=environment,
         user=user,
         volumes={attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}},
-        **_runtime_limits(settings),
-    )
+            **_runtime_limits(settings),
+        )
     try:
-        result = container.wait()
+        with log_context(attempt_id=attempt.id, stage=suffix, event="helper_wait"):
+            result = container.wait()
         logs = container.logs(stdout=True, stderr=True).decode("utf-8", errors="replace")
         return int(result.get("StatusCode", 1)), logs
     finally:
@@ -217,16 +220,17 @@ def _stream_agent(
     environment: dict[str, str],
     attempts: AttemptRepository,
 ) -> tuple[int, bool]:
-    container = client.containers.run(
-        settings.worker_image,
-        command=["/usr/local/bin/nidavelir-run-task"],
+    with log_context(attempt_id=attempt.id, stage="worker", event="worker_container"):
+        container = client.containers.run(
+            settings.worker_image,
+            command=["/usr/local/bin/nidavelir-run-task"],
         name=attempt.container_name,
         detach=True,
         labels=_labels(attempt.id),
         environment=environment,
         volumes={attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}},
-        **_runtime_limits(settings),
-    )
+            **_runtime_limits(settings),
+        )
     attempts.mark_running(attempt.id)
 
     timed_out = Event()
@@ -244,7 +248,9 @@ def _stream_agent(
     buffer = ""
 
     try:
-        for chunk in container.logs(stream=True, follow=True, stdout=True, stderr=True):
+        with log_context(attempt_id=attempt.id, stage="worker", event="worker_stream"):
+            stream = container.logs(stream=True, follow=True, stdout=True, stderr=True)
+        for chunk in stream:
             buffer += chunk.decode("utf-8", errors="replace")
             if len(buffer) >= 1024:
                 attempts.append_logs(attempt.id, buffer)
@@ -556,6 +562,12 @@ def execute_attempt(attempt_id: UUID) -> None:
 def cancel_attempt_resources(attempt_id: UUID) -> None:
     client = None
     try:
+        context = log_context(
+            attempt_id=attempt_id,
+            stage="cancellation",
+            event="resource_cleanup",
+        )
+        context.__enter__()
         client = docker.from_env()
         containers = client.containers.list(
             all=True,
@@ -577,6 +589,10 @@ def cancel_attempt_resources(attempt_id: UUID) -> None:
             exc_info=True,
         )
     finally:
+        try:
+            context.__exit__(None, None, None)
+        except UnboundLocalError:
+            pass
         if client is not None:
             try:
                 client.close()
