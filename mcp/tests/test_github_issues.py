@@ -31,6 +31,7 @@ def test_fetch_github_issue_normalizes_payload(monkeypatch: pytest.MonkeyPatch) 
             "title": "Dogfood GitHub issue import",
             "body": "Create a durable task from this issue.",
             "html_url": "https://github.com/Nicolas25vlad/nidavelir/issues/142",
+            "labels": [{"name": "dogfood"}, {"name": "review"}],
         },
     )
 
@@ -44,6 +45,7 @@ def test_fetch_github_issue_normalizes_payload(monkeypatch: pytest.MonkeyPatch) 
     assert issue.number == 142
     assert issue.title == "Dogfood GitHub issue import"
     assert issue.body == "Create a durable task from this issue."
+    assert issue.labels == ("dogfood", "review")
 
 
 def test_fetch_github_issue_rejects_pull_request(monkeypatch: pytest.MonkeyPatch) -> None:

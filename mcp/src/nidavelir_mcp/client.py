@@ -80,6 +80,8 @@ class CoreClient:
         supervisor_client: str | None = None,
         supervisor_session_id: str | None = None,
         project_id: str | None = None,
+        source_key: str | None = None,
+        source: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return self._request(
             "POST",
@@ -95,6 +97,8 @@ class CoreClient:
                 "supervisor_client": supervisor_client,
                 "supervisor_session_id": supervisor_session_id,
                 "project_id": project_id,
+                "source_key": source_key,
+                "source": source,
             },
         )
 
@@ -107,6 +111,7 @@ class CoreClient:
         supervisor_client: str | None = None,
         supervisor_session_id: str | None = None,
         project_id: str | None = None,
+        source_key: str | None = None,
     ) -> list[dict[str, Any]]:
         params = {
             key: value
@@ -114,6 +119,7 @@ class CoreClient:
                 "supervisor_client": supervisor_client,
                 "supervisor_session_id": supervisor_session_id,
                 "project_id": project_id,
+                "source_key": source_key,
             }.items()
             if value is not None
         }

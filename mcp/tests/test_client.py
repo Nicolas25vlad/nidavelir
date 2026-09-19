@@ -23,6 +23,8 @@ def test_create_task_sends_normalized_payload() -> None:
         assert payload["supervisor_client"] == "codex"
         assert payload["supervisor_session_id"] == "chat-a"
         assert payload["project_id"] == "nidavelir"
+        assert payload["source_key"] == "github_issue:Nicolas25vlad/nidavelir#132"
+        assert payload["source"]["type"] == "github_issue"
         return httpx.Response(
             201,
             json={"id": "task-1", "title": "Ship MVP", "state": "BACKLOG"},
@@ -45,6 +47,13 @@ def test_create_task_sends_normalized_payload() -> None:
             supervisor_client="codex",
             supervisor_session_id="chat-a",
             project_id="nidavelir",
+            source_key="github_issue:Nicolas25vlad/nidavelir#132",
+            source={
+                "type": "github_issue",
+                "ref": "Nicolas25vlad/nidavelir#132",
+                "url": "https://github.com/Nicolas25vlad/nidavelir/issues/132",
+                "metadata": {"labels": ["dogfood"]},
+            },
         )
     finally:
         client.close()
@@ -76,6 +85,7 @@ def test_list_tasks_sends_supervisor_filters() -> None:
         assert request.url.params["supervisor_client"] == "codex"
         assert request.url.params["supervisor_session_id"] == "chat-a"
         assert request.url.params["project_id"] == "nidavelir"
+        assert request.url.params["source_key"] == "github_issue:Nicolas25vlad/nidavelir#132"
         return httpx.Response(200, json=[])
 
     client = CoreClient("http://core:8000", transport=httpx.MockTransport(handler))
@@ -84,6 +94,7 @@ def test_list_tasks_sends_supervisor_filters() -> None:
             supervisor_client="codex",
             supervisor_session_id="chat-a",
             project_id="nidavelir",
+            source_key="github_issue:Nicolas25vlad/nidavelir#132",
         )
     finally:
         client.close()

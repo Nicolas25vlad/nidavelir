@@ -28,6 +28,8 @@ class TaskRepository:
             supervisor_client=payload.supervisor_client,
             supervisor_session_id=payload.supervisor_session_id,
             project_id=payload.project_id,
+            source_key=payload.source_key,
+            source=payload.source.model_dump() if payload.source is not None else None,
             state=TaskState.BACKLOG,
         )
         self.session.add(task)
@@ -40,6 +42,7 @@ class TaskRepository:
         supervisor_client: str | None = None,
         supervisor_session_id: str | None = None,
         project_id: str | None = None,
+        source_key: str | None = None,
     ) -> list[TaskRecord]:
         statement = select(TaskRecord).options(selectinload(TaskRecord.transitions))
         if supervisor_client is not None:
@@ -50,6 +53,8 @@ class TaskRepository:
             )
         if project_id is not None:
             statement = statement.where(TaskRecord.project_id == project_id)
+        if source_key is not None:
+            statement = statement.where(TaskRecord.source_key == source_key)
         statement = (
             statement.execution_options(populate_existing=True)
             .order_by(TaskRecord.created_at.desc())
