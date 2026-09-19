@@ -367,7 +367,7 @@ function TaskDetail() {
       </div>
 
       {selected && !selected.configured && canStart && (
-        <AsyncState kind="error" title={`${selected.display_name} is not configured`} detail={`Set ${selected.credential_env} on the server before starting this harness.`} />
+        <AsyncState kind="error" title={`${selected.display_name} is not configured`} detail={`Run nidavelir auth login ${selected.id} on the server, or set ${selected.credential_env} as an API-key fallback.`} />
       )}
 
       <ReviewContext task={task} attempt={latest} checks={checks} />
