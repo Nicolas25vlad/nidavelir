@@ -59,7 +59,7 @@ def agent_auth_environment(settings: Settings, harness: str) -> dict[str, str]:
         if harness == "codex":
             return {"CODEX_HOME": AUTH_MOUNTS["codex"]}
         if harness == "cursor":
-            return {"CURSOR_CONFIG_DIR": AUTH_MOUNTS["cursor"]}
+            return {}
         return {}
 
     if harness == "codex" and settings.openai_api_key is not None:
