@@ -146,6 +146,136 @@ If those commands cannot reach Docker, `nidavelir` stops with an explicit permis
 
 `nidavelir update` pulls published GHCR images and recreates services without deleting the PostgreSQL volume or replacing `/opt/nidavelir/.env`.
 
+
+## Self-dogfood runbook
+
+Use this flow when Nidavelir works on an issue from its own repository. The goal is to exercise the same public control surfaces an operator would use, not to rescue the task by entering its container.
+
+### 1. Preflight
+
+Confirm the appliance and executor are healthy before creating work:
+
+```bash
+nidavelir doctor
+nidavelir status
+```
+
+If the stack was just installed or updated, wait for the normal readiness gate to complete. Do not create a dogfood task while `doctor` reports a missing database, Docker, worker image, executor, or harness prerequisite.
+
+### 2. Import one real GitHub issue
+
+From an authenticated external supervisor, call the MCP tool:
+
+```text
+create_task_from_github_issue(
+  issue="Nicolas25vlad/nidavelir#<issue>",
+  project_id="nidavelir",
+  supervisor_client="<codex|cursor|other-supervisor>",
+  supervisor_session_id="<stable-chat-or-project-session>",
+  profile="auto"
+)
+```
+
+Do not invent acceptance criteria that are not present in the issue. Add an explicit profile or validation override only when the issue actually requires one.
+
+### 3. Start the durable task
+
+Use the Web task detail or MCP:
+
+```text
+start_task(task_id="<task-id>", harness="codex")
+```
+
+The supervisor and worker harness are independent. A Codex supervisor may start a Cursor worker, and vice versa.
+
+After enqueueing, normal execution must proceed through the dedicated executor. Do not use `docker exec` to finish the task manually.
+
+### 4. Observe evidence, not worker prose
+
+Use the Web task detail as the primary operator surface. Check:
+
+- task and attempt state;
+- selected worker harness and profile;
+- persisted diff;
+- validation mode, reason, and checks;
+- retry context when this is a later attempt;
+- token usage when the harness reports it;
+- worker logs only when a stage needs diagnosis.
+
+A worker saying that the task is complete is not review evidence by itself.
+
+### 5. Make the validation decision consciously
+
+For `configured`, `repo`, or `auto` validation, inspect the persisted checks before approval.
+
+If the attempt is marked **UNVALIDATED**, treat that as missing evidence, not success. Web requires an explicit acknowledgment before approving an unvalidated attempt.
+
+### 6. Reject and retry when needed
+
+When the implementation is not acceptable, reject it with specific feedback. Nidavelir preserves that feedback as structured retry context for the next fresh attempt.
+
+Then start the task again. Do not edit the failed worker container or reuse it as a hidden mutable workspace.
+
+### 7. Approve and merge
+
+When the diff and validation evidence are acceptable:
+
+1. approve the latest attempt;
+2. verify the task moves to `APPROVED`;
+3. merge through Web or the MCP `merge_task` tool;
+4. record the resulting merge commit SHA.
+
+Nidavelir verifies that the reviewed branch SHA has not moved before merging.
+
+### 8. Recovery check
+
+At least one dogfood run should include a Core restart while work is queued or active:
+
+```bash
+nidavelir restart core
+nidavelir status
+```
+
+Core restart must not own or kill the long-running attempt. The dedicated executor and durable database state are responsible for execution continuity/recovery.
+
+If recovery is needed, inspect service logs rather than mutating worker state:
+
+```bash
+nidavelir logs executor
+nidavelir logs core
+```
+
+Structured production logs include installation, task, attempt, stage, and event correlation where available.
+
+### Evidence checklist for the self-dogfood gate
+
+For each of the three real runs tracked by issue #145, record:
+
+```text
+GitHub issue:
+Nidavelir task ID:
+Supervisor client/session:
+Worker harness:
+Attempt ID(s):
+Resolved profile:
+Validation mode:
+Validation result:
+Reject/retry used: yes/no
+Core restart exercised: yes/no
+Manual docker exec / container edit required: yes/no
+Merge commit:
+Unexpected recovery or operator action:
+```
+
+A run counts toward the gate only when the code change actually travelled through Nidavelir. Work implemented manually outside Nidavelir and merely documented afterward does not count.
+
+### Failure triage
+
+If a run stalls, preserve the failed state first. Check `nidavelir status`, the Web attempt history, validation records, and correlated executor/Core logs. Restarting Core is acceptable; manually editing or completing the disposable worker is not.
+
+If the product cannot finish the issue without manual container intervention, record that as a dogfood failure and create a focused product issue for the blocker.
+
+
 ## Pin or roll back
 
 Every published build gets a `sha-<12 chars>` tag. Release tags such as `v0.1.0` are published too.
