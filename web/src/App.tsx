@@ -287,7 +287,7 @@ function TaskDetail() {
   const [feedback, setFeedback] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionBusy, setActionBusy] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);\n  const [unvalidatedAcknowledged, setUnvalidatedAcknowledged] = useState(false);
 
   useEffect(() => {
     if (!taskId) return;
@@ -335,7 +335,7 @@ function TaskDetail() {
   const canMerge = task?.state === "APPROVED";
   const canCancel = Boolean(task && !["CLOSED", "CANCELLED", "MERGED"].includes(task.state));
 
-  const runAction = async (action: () => Promise<unknown>) => {
+  useEffect(() => {\n    setUnvalidatedAcknowledged(false);\n  }, [latest?.id]);\n\n  const runAction = async (action: () => Promise<unknown>) => {
     setActionBusy(true);
     setError(null);
     try {
