@@ -142,6 +142,12 @@ export interface MergeResult {
   merge_commit_sha: string;
 }
 
+export interface TaskListFilters {
+  project_id?: string;
+  supervisor_client?: string;
+  supervisor_session_id?: string;
+}
+
 export interface CreateTaskInput {
   title: string;
   repository: string;
@@ -237,7 +243,18 @@ export class NidavelirApi {
   }
 
   listTasks(signal?: AbortSignal): Promise<Task[]> {
-    return this.get<Task[]>("/tasks", signal);
+    return this.listTasksFiltered({}, signal);
+  }
+
+  listTasksFiltered(filters: TaskListFilters, signal?: AbortSignal): Promise<Task[]> {
+    const params = new URLSearchParams();
+    if (filters.project_id) params.set("project_id", filters.project_id);
+    if (filters.supervisor_client) params.set("supervisor_client", filters.supervisor_client);
+    if (filters.supervisor_session_id) {
+      params.set("supervisor_session_id", filters.supervisor_session_id);
+    }
+    const query = params.toString();
+    return this.get<Task[]>(query ? `/tasks?${query}` : "/tasks", signal);
   }
 
   getTask(taskId: string, signal?: AbortSignal): Promise<Task> {
