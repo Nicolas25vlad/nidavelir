@@ -461,13 +461,13 @@ cmd_doctor() {
   if [[ "$docker_ready" -eq 1 ]]; then
     compose ps || true
     if core_running; then
-      if core_probe /ready >/tmp/nidavelir-ready.$ 2>&1; then
+      if core_probe /ready >/tmp/nidavelir-ready.$$ 2>&1; then
         printf 'Readiness: Core dependencies ready\n'
-        rm -f /tmp/nidavelir-ready.$
+        rm -f /tmp/nidavelir-ready.$$
       else
         printf 'FAILED: running Core readiness probe did not pass\n'
-        cat /tmp/nidavelir-ready.$ >&2 || true
-        rm -f /tmp/nidavelir-ready.$
+        cat /tmp/nidavelir-ready.$$ >&2 || true
+        rm -f /tmp/nidavelir-ready.$$
         failed=1
       fi
     else
