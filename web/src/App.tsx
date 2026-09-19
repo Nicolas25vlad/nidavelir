@@ -393,6 +393,7 @@ function TaskDetail() {
           <label>
             Evidence attempt
             <select
+              aria-label="Evidence attempt"
               value={evidenceAttempt?.id ?? ""}
               onChange={(event) => setSelectedAttemptId(event.target.value)}
             >
