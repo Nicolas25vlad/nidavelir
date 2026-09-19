@@ -38,12 +38,16 @@ NIDAVELIR_OPENAI_API_KEY=   # optional Codex API-key auth
 NIDAVELIR_CURSOR_API_KEY=   # optional Cursor API-key auth
 ```
 
-Then validate and start without sudo:
+Then run a preflight and start without sudo:
 
 ```bash
 nidavelir doctor
 nidavelir update
 ```
+
+On a fresh installation, `doctor` checks permissions, Docker access, Compose configuration and required credentials without treating the intentionally stopped stack as a failure. After the stack is running, the same command also requires Core readiness.
+
+`nidavelir update` and `nidavelir start` wait for `/ready` before reporting success. The default startup timeout is 90 seconds and can be changed with `NIDAVELIR_STARTUP_TIMEOUT_SECONDS`.
 
 ## Shared Docker hosts
 
