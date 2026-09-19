@@ -68,3 +68,37 @@
   margin-top: 0.15rem;
   accent-color: var(--accent, #d29922);
 }
+
+
+.attempt-evidence-picker {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border, #27272a);
+  border-radius: 0.6rem;
+  background: var(--surface, #0f141b);
+}
+
+.attempt-evidence-picker label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--muted, #a1a1aa);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.attempt-evidence-picker select {
+  min-width: min(420px, 70vw);
+  border: 1px solid var(--border, #27272a);
+  border-radius: 0.35rem;
+  color: var(--text, #e6edf3);
+  background: #0b1016;
+  padding: 0.45rem 0.55rem;
+}
+
+.attempt-evidence-picker > span {
+  color: var(--muted, #a1a1aa);
+  font-size: 0.75rem;
+}
