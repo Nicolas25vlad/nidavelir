@@ -187,6 +187,12 @@ def _run_helper(
     environment: dict[str, str],
     user: str | None = None,
 ) -> tuple[int, str]:
+    log_extra = {
+        "attempt_id": str(attempt.id),
+        "stage": suffix,
+        "event": "helper_started",
+    }
+    logger.info("starting helper container", extra=log_extra)
     container = client.containers.run(
         settings.worker_image,
         command=[command],
@@ -201,12 +207,21 @@ def _run_helper(
     try:
         result = container.wait()
         logs = container.logs(stdout=True, stderr=True).decode("utf-8", errors="replace")
-        return int(result.get("StatusCode", 1)), logs
+        exit_code = int(result.get("StatusCode", 1))
+        logger.info(
+            "helper container finished",
+            extra={**log_extra, "event": "helper_finished"},
+        )
+        return exit_code, logs
     finally:
         try:
             container.remove(force=True)
         except (APIError, NotFound):
-            logger.debug("helper container already removed", exc_info=True)
+            logger.debug(
+                "helper container already removed",
+                extra={**log_extra, "event": "helper_cleanup_race"},
+                exc_info=True,
+            )
 
 
 def _stream_agent(
@@ -217,6 +232,12 @@ def _stream_agent(
     environment: dict[str, str],
     attempts: AttemptRepository,
 ) -> tuple[int, bool]:
+    log_extra = {
+        "attempt_id": str(attempt.id),
+        "stage": "worker",
+        "event": "worker_started",
+    }
+    logger.info("starting coding worker", extra=log_extra)
     container = client.containers.run(
         settings.worker_image,
         command=["/usr/local/bin/nidavelir-run-task"],
@@ -236,7 +257,11 @@ def _stream_agent(
         try:
             container.kill()
         except (APIError, NotFound):
-            logger.debug("worker finished before timeout kill", exc_info=True)
+            logger.debug(
+                "worker finished before timeout kill",
+                extra={**log_extra, "event": "worker_timeout_race"},
+                exc_info=True,
+            )
 
     timer = Timer(settings.worker_timeout_seconds, kill_for_timeout)
     timer.daemon = True
@@ -252,13 +277,25 @@ def _stream_agent(
         if buffer:
             attempts.append_logs(attempt.id, buffer)
         result = container.wait()
-        return int(result.get("StatusCode", 1)), timed_out.is_set()
+        exit_code = int(result.get("StatusCode", 1))
+        logger.info(
+            "coding worker finished",
+            extra={
+                **log_extra,
+                "event": "worker_timed_out" if timed_out.is_set() else "worker_finished",
+            },
+        )
+        return exit_code, timed_out.is_set()
     finally:
         timer.cancel()
         try:
             container.remove(force=True)
         except (APIError, NotFound):
-            logger.debug("worker container already removed", exc_info=True)
+            logger.debug(
+                "worker container already removed",
+                extra={**log_extra, "event": "worker_cleanup_race"},
+                exc_info=True,
+            )
 
 
 def _task_payload(task, attempt: AttemptRecord) -> str:
@@ -555,7 +592,13 @@ def execute_attempt(attempt_id: UUID) -> None:
 
 def cancel_attempt_resources(attempt_id: UUID) -> None:
     client = None
+    log_extra = {
+        "attempt_id": str(attempt_id),
+        "stage": "cancellation",
+        "event": "resource_cleanup",
+    }
     try:
+        logger.info("cancelling attempt resources", extra=log_extra)
         client = docker.from_env()
         containers = client.containers.list(
             all=True,
@@ -574,6 +617,7 @@ def cancel_attempt_resources(attempt_id: UUID) -> None:
         logger.warning(
             "could not cancel Docker resources for attempt %s",
             attempt_id,
+            extra=log_extra,
             exc_info=True,
         )
     finally:
@@ -581,7 +625,11 @@ def cancel_attempt_resources(attempt_id: UUID) -> None:
             try:
                 client.close()
             except DockerException:
-                logger.debug("failed to close Docker client", exc_info=True)
+                logger.debug(
+                    "failed to close Docker client",
+                    extra={**log_extra, "event": "docker_client_close_failed"},
+                    exc_info=True,
+                )
 
 
 def _cleanup_attempt_resources(
