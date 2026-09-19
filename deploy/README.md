@@ -31,12 +31,28 @@ nano /opt/nidavelir/.env
 
 `/opt/nidavelir/.env` is owned by `root:nidavelir` and is not world-readable.
 
-Set `NIDAVELIR_GITHUB_TOKEN`, then configure at least one coding harness. API keys remain supported while persistent browser-login auth is implemented separately:
+Set `NIDAVELIR_GITHUB_TOKEN`, then authenticate at least one worker harness. Normal account login is the preferred interactive self-host flow:
+
+```bash
+nidavelir auth login codex
+# or
+nidavelir auth login cursor
+
+nidavelir auth status
+```
+
+Codex uses device authentication so the server does not need a graphical browser. Cursor runs its browser login with `NO_OPEN_BROWSER=1` and prints the URL for you to open elsewhere.
+
+Authentication is stored in a per-installation, per-harness Docker volume and survives disposable workers and Nidavelir updates. Only the selected harness volume is mounted into a coding worker.
+
+API keys remain available as an automation fallback:
 
 ```dotenv
-NIDAVELIR_OPENAI_API_KEY=   # optional Codex API-key auth
-NIDAVELIR_CURSOR_API_KEY=   # optional Cursor API-key auth
+NIDAVELIR_OPENAI_API_KEY=
+NIDAVELIR_CURSOR_API_KEY=
 ```
+
+Remove a persistent login with `nidavelir auth logout codex` or `nidavelir auth logout cursor`.
 
 Then run a preflight and start without sudo:
 

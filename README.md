@@ -318,7 +318,18 @@ Initial installation is the privileged step:
 curl -fsSL https://raw.githubusercontent.com/Nicolas25vlad/nidavelir/main/deploy/install.sh | sudo bash
 ```
 
-After installation, routine operation is intentionally unprivileged:
+After installation, routine operation is intentionally unprivileged. Worker harnesses can use normal persisted account login instead of requiring API keys:
+
+```bash
+nidavelir update
+nidavelir auth login codex
+# or: nidavelir auth login cursor
+nidavelir auth status
+```
+
+Codex uses device authentication on headless servers; Cursor prints a browser-login URL. Credentials live in per-installation, per-harness Docker volumes and are mounted only into the selected coding worker. API keys remain an optional fallback.
+
+Routine operations remain unprivileged:
 
 ```bash
 nidavelir doctor
