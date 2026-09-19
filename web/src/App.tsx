@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useParams, useSearchParams } from "react-router-dom";
 
 import { AsyncState } from "./components/AsyncState";
 import { ReviewContext } from "./components/ReviewContext";
@@ -12,6 +12,7 @@ import {
   type Harness,
   type ReviewDecision,
   type Task,
+  type TaskListFilters,
   type TaskState,
   type ValidationCheck,
 } from "./lib/api";
@@ -63,7 +64,12 @@ function StateBadge({ state }: { state: string }) {
   return <span className={`badge badge--${state.toLowerCase()}`}>{state.replaceAll("_", " ")}</span>;
 }
 
-function useTasks(pollMs = 5000) {
+function useTasks(filters: TaskListFilters = {}, pollMs = 5000) {
+  const {
+    project_id: projectId,
+    supervisor_client: supervisorClient,
+    supervisor_session_id: supervisorSessionId,
+  } = filters;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +79,11 @@ function useTasks(pollMs = 5000) {
     let active = true;
     const load = async () => {
       try {
-        const data = await api.listTasks();
+        const data = await api.listTasksFiltered({
+          project_id: projectId,
+          supervisor_client: supervisorClient,
+          supervisor_session_id: supervisorSessionId,
+        });
         if (!active) return;
         setTasks(data);
         setError(null);
@@ -90,9 +100,72 @@ function useTasks(pollMs = 5000) {
       active = false;
       window.clearInterval(timer);
     };
-  }, [pollMs, revision]);
+  }, [pollMs, projectId, revision, supervisorClient, supervisorSessionId]);
 
   return { tasks, loading, error, refresh: () => setRevision((value) => value + 1) };
+}
+
+function useOperationalTaskFilters() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters: TaskListFilters = {
+    project_id: searchParams.get("project") || undefined,
+    supervisor_client: searchParams.get("client") || undefined,
+    supervisor_session_id: searchParams.get("session") || undefined,
+  };
+
+  const apply = (next: TaskListFilters) => {
+    const params = new URLSearchParams();
+    if (next.project_id) params.set("project", next.project_id);
+    if (next.supervisor_client) params.set("client", next.supervisor_client);
+    if (next.supervisor_session_id) params.set("session", next.supervisor_session_id);
+    setSearchParams(params);
+  };
+
+  return { filters, apply, clear: () => setSearchParams(new URLSearchParams()) };
+}
+
+function OperationalFilters({
+  filters,
+  onApply,
+  onClear,
+}: {
+  filters: TaskListFilters;
+  onApply: (filters: TaskListFilters) => void;
+  onClear: () => void;
+}) {
+  const [project, setProject] = useState(filters.project_id ?? "");
+  const [client, setClient] = useState(filters.supervisor_client ?? "");
+  const [session, setSession] = useState(filters.supervisor_session_id ?? "");
+
+  useEffect(() => {
+    setProject(filters.project_id ?? "");
+    setClient(filters.supervisor_client ?? "");
+    setSession(filters.supervisor_session_id ?? "");
+  }, [filters.project_id, filters.supervisor_client, filters.supervisor_session_id]);
+
+  const active = Boolean(
+    filters.project_id || filters.supervisor_client || filters.supervisor_session_id,
+  );
+
+  return (
+    <form
+      className="operational-filters"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onApply({
+          project_id: project.trim() || undefined,
+          supervisor_client: client.trim() || undefined,
+          supervisor_session_id: session.trim() || undefined,
+        });
+      }}
+    >
+      <label>Project<input value={project} onChange={(event) => setProject(event.target.value)} placeholder="nidavelir" /></label>
+      <label>Supervisor<input value={client} onChange={(event) => setClient(event.target.value)} placeholder="codex" /></label>
+      <label>Session<input value={session} onChange={(event) => setSession(event.target.value)} placeholder="chat/session id" /></label>
+      <button className="button" type="submit">Apply</button>
+      {active && <button className="button button--secondary" type="button" onClick={onClear}>Clear</button>}
+    </form>
+  );
 }
 
 function TaskRow({ task }: { task: Task }) {
@@ -111,7 +184,8 @@ function TaskRow({ task }: { task: Task }) {
 }
 
 function Overview() {
-  const { tasks, loading, error } = useTasks();
+  const { filters, apply, clear } = useOperationalTaskFilters();
+  const { tasks, loading, error } = useTasks(filters);
   const active = tasks.filter((task) => ["QUEUED", "RUNNING", "VALIDATING"].includes(task.state));
   const attention = tasks.filter((task) => ["VALIDATING", "NEEDS_CHANGES", "APPROVED"].includes(task.state));
   const completed = tasks.filter((task) => task.state === "CLOSED");
@@ -122,6 +196,7 @@ function Overview() {
   return (
     <section>
       <PageHeader eyebrow="System briefing" title="Overview" description="Live durable task and worker state." />
+      <OperationalFilters filters={filters} onApply={apply} onClear={clear} />
       <div className="metric-row">
         <div><span>Active</span><strong>{active.length}</strong></div>
         <div><span>Needs decision</span><strong>{attention.length}</strong></div>
@@ -192,13 +267,15 @@ function CreateTaskForm({ onCreated }: { onCreated: () => void }) {
 }
 
 function Board() {
-  const { tasks, loading, error, refresh } = useTasks();
+  const { filters, apply, clear } = useOperationalTaskFilters();
+  const { tasks, loading, error, refresh } = useTasks(filters);
   if (loading) return <AsyncState kind="loading" title="Loading board" detail="Reading persisted task states." />;
   if (error) return <AsyncState kind="error" title="Board unavailable" detail={error} />;
 
   return (
     <section>
       <PageHeader eyebrow="Durable state" title="Board" description="Every column maps directly to persisted Core state." />
+      <OperationalFilters filters={filters} onApply={apply} onClear={clear} />
       <CreateTaskForm onCreated={refresh} />
       <div className="kanban" aria-label="Task board">
         {boardStates.map((state) => {
