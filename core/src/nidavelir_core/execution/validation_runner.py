@@ -6,7 +6,6 @@ from threading import Event, Timer
 
 from docker.errors import APIError, NotFound
 
-from nidavelir_core.logging import log_context
 from nidavelir_core.settings import Settings
 from nidavelir_core.tasks.domain import TaskState
 from nidavelir_core.tasks.repository import TaskRepository
@@ -35,14 +34,15 @@ def _run_check_container(
     command: str,
     timeout_seconds: int,
 ) -> tuple[int, str, bool]:
-    with log_context(
-        task_id=attempt.task_id,
-        attempt_id=attempt.id,
-        stage="validation",
-        event=f"check_{position}",
-    ):
-        container = client.containers.run(
-            settings.worker_image,
+    log_extra = {
+        "task_id": str(attempt.task_id),
+        "attempt_id": str(attempt.id),
+        "stage": "validation",
+        "event": f"check_{position}_started",
+    }
+    logger.info("starting validation check", extra=log_extra)
+    container = client.containers.run(
+        settings.worker_image,
         command=["/usr/local/bin/nidavelir-run-check"],
         name=f"{attempt.container_name}-check-{position}",
         detach=True,
@@ -54,8 +54,8 @@ def _run_check_container(
         environment={"NIDAVELIR_VALIDATION_COMMAND": command},
         volumes={attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}},
         mem_limit=settings.worker_memory,
-            nano_cpus=int(settings.worker_cpus * 1_000_000_000),
-        )
+        nano_cpus=int(settings.worker_cpus * 1_000_000_000),
+    )
     timed_out = Event()
 
     def kill_for_timeout() -> None:
@@ -63,27 +63,41 @@ def _run_check_container(
         try:
             container.kill()
         except (APIError, NotFound):
-            logger.debug("validation container finished before timeout kill", exc_info=True)
+            logger.debug(
+                "validation container finished before timeout kill",
+                extra={**log_extra, "event": f"check_{position}_timeout_race"},
+                exc_info=True,
+            )
 
     timer = Timer(timeout_seconds, kill_for_timeout)
     timer.daemon = True
     timer.start()
     try:
-        with log_context(
-            task_id=attempt.task_id,
-            attempt_id=attempt.id,
-            stage="validation",
-            event=f"check_{position}_wait",
-        ):
-            result = container.wait()
-            output = container.logs(stdout=True, stderr=True).decode("utf-8", errors="replace")
-        return int(result.get("StatusCode", 1)), output, timed_out.is_set()
+        result = container.wait()
+        output = container.logs(stdout=True, stderr=True).decode("utf-8", errors="replace")
+        exit_code = int(result.get("StatusCode", 1))
+        logger.info(
+            "validation check finished",
+            extra={
+                **log_extra,
+                "event": (
+                    f"check_{position}_timed_out"
+                    if timed_out.is_set()
+                    else f"check_{position}_finished"
+                ),
+            },
+        )
+        return exit_code, output, timed_out.is_set()
     finally:
         timer.cancel()
         try:
             container.remove(force=True)
         except (APIError, NotFound):
-            logger.debug("validation container already removed", exc_info=True)
+            logger.debug(
+                "validation container already removed",
+                extra={**log_extra, "event": f"check_{position}_cleanup_race"},
+                exc_info=True,
+            )
 
 
 def run_validation_checks(
