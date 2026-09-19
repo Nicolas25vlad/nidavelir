@@ -62,6 +62,16 @@ services:
     cpus: ${NIDAVELIR_CORE_CPUS:-0.75}
     mem_limit: ${NIDAVELIR_CORE_MEMORY:-512m}
     pids_limit: ${NIDAVELIR_CORE_PIDS_LIMIT:-256}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c 'import urllib.request;
+          urllib.request.urlopen("http://127.0.0.1:8000/health", timeout=3).read()'
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
     restart: unless-stopped
 
   executor:
@@ -107,7 +117,8 @@ services:
       NIDAVELIR_MCP_RESOURCE_URL: ${NIDAVELIR_MCP_RESOURCE_URL:-http://127.0.0.1:8001/mcp}
       NIDAVELIR_MCP_ISSUER_URL: ${NIDAVELIR_MCP_ISSUER_URL:-http://127.0.0.1:8001}
     depends_on:
-      - core
+      core:
+        condition: service_healthy
     ports:
       - "${NIDAVELIR_MCP_BIND_ADDRESS:-127.0.0.1}:${NIDAVELIR_MCP_HOST_PORT:-8001}:8001"
     networks:

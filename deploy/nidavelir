@@ -85,6 +85,36 @@ except Exception as error:
 ' "$path"
 }
 
+
+
+core_running() {
+  local container_id
+  container_id="$(compose ps -q core 2>/dev/null || true)"
+  [[ -n "$container_id" ]] || return 1
+  [[ "$(docker inspect -f '{{.State.Running}}' "$container_id" 2>/dev/null || true)" == "true" ]]
+}
+
+wait_ready() {
+  local timeout_seconds="${NIDAVELIR_STARTUP_TIMEOUT_SECONDS:-90}"
+  local started now
+  started="$(date +%s)"
+  printf 'Waiting for Core readiness (timeout %ss)...\n' "$timeout_seconds"
+  while true; do
+    if core_running && core_probe /ready >/dev/null 2>&1; then
+      printf 'Readiness: Core dependencies ready\n'
+      return 0
+    fi
+    now="$(date +%s)"
+    if (( now - started >= timeout_seconds )); then
+      printf 'FAILED: Core did not become ready within %ss\n' "$timeout_seconds" >&2
+      compose ps >&2 || true
+      printf 'Hint: nidavelir logs core\n' >&2
+      return 1
+    fi
+    sleep 2
+  done
+}
+
 cmd_update() {
   require_install
   require_write_access
@@ -111,16 +141,17 @@ cmd_update() {
     fatal "image pull failed; version restored to $previous"
   fi
 
-  if ! compose up -d --remove-orphans; then
-    printf 'Update failed, attempting rollback to %s\n' "$previous" >&2
+  if ! compose up -d --remove-orphans || ! wait_ready; then
+    printf 'Update failed or never became ready, attempting rollback to %s\n' "$previous" >&2
     set_version "$previous"
     compose pull || true
     compose up -d --remove-orphans || true
-    fatal "update failed and rollback was attempted"
+    wait_ready || true
+    fatal "update failed readiness and rollback was attempted"
   fi
 
   compose ps
-  printf 'Nidavelir is running version %s\n' "$requested"
+  printf 'Nidavelir is ready on version %s\n' "$requested"
 }
 
 cmd_status() {
@@ -169,6 +200,7 @@ cmd_start() {
   require_install
   require_docker_access
   compose up -d
+  wait_ready || fatal "stack started but Core readiness did not pass"
   compose ps
 }
 
@@ -285,16 +317,20 @@ cmd_doctor() {
     failed=1
   fi
 
-  if [[ "$docker_ready" -eq 1 ]] && compose ps >/dev/null 2>&1; then
-    compose ps
-    if core_probe /ready >/tmp/nidavelir-ready.$$ 2>&1; then
-      printf 'Readiness: Core dependencies ready\n'
-      rm -f /tmp/nidavelir-ready.$$
+  if [[ "$docker_ready" -eq 1 ]]; then
+    compose ps || true
+    if core_running; then
+      if core_probe /ready >/tmp/nidavelir-ready.$ 2>&1; then
+        printf 'Readiness: Core dependencies ready\n'
+        rm -f /tmp/nidavelir-ready.$
+      else
+        printf 'FAILED: running Core readiness probe did not pass\n'
+        cat /tmp/nidavelir-ready.$ >&2 || true
+        rm -f /tmp/nidavelir-ready.$
+        failed=1
+      fi
     else
-      printf 'FAILED: Core readiness probe did not pass\n'
-      cat /tmp/nidavelir-ready.$$ >&2 || true
-      rm -f /tmp/nidavelir-ready.$$
-      failed=1
+      printf 'Readiness: skipped (stack not running yet; preflight mode)\n'
     fi
   else
     printf 'WARN: stack status/readiness unavailable\n'
