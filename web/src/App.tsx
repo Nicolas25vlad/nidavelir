@@ -288,6 +288,7 @@ function TaskDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [unvalidatedAcknowledged, setUnvalidatedAcknowledged] = useState(false);
 
   useEffect(() => {
     if (!taskId) return;
@@ -334,6 +335,14 @@ function TaskDetail() {
   const canReview = task?.state === "VALIDATING";
   const canMerge = task?.state === "APPROVED";
   const canCancel = Boolean(task && !["CLOSED", "CANCELLED", "MERGED"].includes(task.state));
+
+  const latestUnvalidated =
+    latest?.validation_mode === "skipped" || latest?.validation_mode === "unresolved";
+  const canApprove = !latestUnvalidated || unvalidatedAcknowledged;
+
+  useEffect(() => {
+    setUnvalidatedAcknowledged(false);
+  }, [latest?.id]);
 
   const runAction = async (action: () => Promise<unknown>) => {
     setActionBusy(true);
@@ -418,8 +427,18 @@ function TaskDetail() {
         {canReview && (
           <div className="task-form">
             <label>Review feedback<textarea rows={3} value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Required for rejection, optional for approval" /></label>
+            {latestUnvalidated && (
+              <label className="review-ack">
+                <input
+                  type="checkbox"
+                  checked={unvalidatedAcknowledged}
+                  onChange={(event) => setUnvalidatedAcknowledged(event.target.checked)}
+                />
+                <span>I understand this attempt has no deterministic validation evidence.</span>
+              </label>
+            )}
             <div>
-              <button className="button" disabled={actionBusy} onClick={() => void runAction(() => api.approveTask(taskId, feedback))}>Approve</button>
+              <button className="button" disabled={actionBusy || !canApprove} onClick={() => void runAction(() => api.approveTask(taskId, feedback))}>Approve</button>
               <button className="button button--secondary" disabled={actionBusy || !feedback.trim()} onClick={() => void runAction(async () => { await api.rejectTask(taskId, feedback); setFeedback(""); })}>Reject + retry</button>
             </div>
           </div>
