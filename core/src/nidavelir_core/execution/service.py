@@ -15,6 +15,7 @@ from nidavelir_core.settings import Settings, get_settings
 from nidavelir_core.tasks.domain import InvalidTaskTransition, TaskState
 from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
 
+from .harness_auth import agent_auth_environment, agent_auth_volumes, harness_configured
 from .models import AttemptRecord, AttemptStatus
 from .repository import AttemptNotFound, AttemptRepository
 from .validation import ValidationRepository
@@ -69,13 +70,10 @@ def _validate_harness_configuration(settings: Settings, harness: str) -> None:
         raise ExecutionConfigurationError(
             "NIDAVELIR_GITHUB_TOKEN is required to push task branches"
         )
-    if harness == "codex" and settings.openai_api_key is None:
+    if not harness_configured(settings, harness):
         raise ExecutionConfigurationError(
-            "NIDAVELIR_OPENAI_API_KEY is required for the Codex harness"
-        )
-    if harness == "cursor" and settings.cursor_api_key is None:
-        raise ExecutionConfigurationError(
-            "NIDAVELIR_CURSOR_API_KEY is required for the Cursor harness"
+            f"{harness} is not authenticated; run 'nidavelir auth login {harness}' "
+            "or configure its API key"
         )
 
 
@@ -148,16 +146,12 @@ def _secret_value(value) -> str:
 
 
 def _agent_environment(settings: Settings, attempt: AttemptRecord, task) -> dict[str, str]:
-    environment = {
+    return {
         "NIDAVELIR_TASK_JSON": _task_payload(task, attempt),
         "NIDAVELIR_TASK_BRANCH": attempt.branch_name,
         "NIDAVELIR_HARNESS": attempt.harness,
+        **agent_auth_environment(settings, attempt.harness),
     }
-    if attempt.harness == "codex":
-        environment["OPENAI_API_KEY"] = _secret_value(settings.openai_api_key)
-    elif attempt.harness == "cursor":
-        environment["CURSOR_API_KEY"] = _secret_value(settings.cursor_api_key)
-    return environment
 
 
 def _append_stage_logs(
@@ -224,7 +218,10 @@ def _stream_agent(
         detach=True,
         labels=_labels(attempt.id),
         environment=environment,
-        volumes={attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}},
+        volumes={
+            attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"},
+            **agent_auth_volumes(settings, attempt.harness),
+        },
         **_runtime_limits(settings),
     )
     attempts.mark_running(attempt.id)
