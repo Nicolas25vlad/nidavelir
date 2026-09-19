@@ -6,6 +6,7 @@ from threading import Event, Timer
 
 from docker.errors import APIError, NotFound
 
+from nidavelir_core.logging import log_context
 from nidavelir_core.settings import Settings
 from nidavelir_core.tasks.domain import TaskState
 from nidavelir_core.tasks.repository import TaskRepository
@@ -34,8 +35,14 @@ def _run_check_container(
     command: str,
     timeout_seconds: int,
 ) -> tuple[int, str, bool]:
-    container = client.containers.run(
-        settings.worker_image,
+    with log_context(
+        task_id=attempt.task_id,
+        attempt_id=attempt.id,
+        stage="validation",
+        event=f"check_{position}",
+    ):
+        container = client.containers.run(
+            settings.worker_image,
         command=["/usr/local/bin/nidavelir-run-check"],
         name=f"{attempt.container_name}-check-{position}",
         detach=True,
@@ -47,8 +54,8 @@ def _run_check_container(
         environment={"NIDAVELIR_VALIDATION_COMMAND": command},
         volumes={attempt.volume_name: {"bind": "/workspace/repo", "mode": "rw"}},
         mem_limit=settings.worker_memory,
-        nano_cpus=int(settings.worker_cpus * 1_000_000_000),
-    )
+            nano_cpus=int(settings.worker_cpus * 1_000_000_000),
+        )
     timed_out = Event()
 
     def kill_for_timeout() -> None:
@@ -62,8 +69,14 @@ def _run_check_container(
     timer.daemon = True
     timer.start()
     try:
-        result = container.wait()
-        output = container.logs(stdout=True, stderr=True).decode("utf-8", errors="replace")
+        with log_context(
+            task_id=attempt.task_id,
+            attempt_id=attempt.id,
+            stage="validation",
+            event=f"check_{position}_wait",
+        ):
+            result = container.wait()
+            output = container.logs(stdout=True, stderr=True).decode("utf-8", errors="replace")
         return int(result.get("StatusCode", 1)), output, timed_out.is_set()
     finally:
         timer.cancel()
