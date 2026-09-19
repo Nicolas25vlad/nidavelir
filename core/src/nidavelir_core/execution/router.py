@@ -47,15 +47,15 @@ def list_harnesses() -> list[HarnessRead]:
             id="codex",
             display_name="OpenAI Codex CLI",
             configured=harness_configured(settings, "codex"),
-            credential_env="nidavelir auth login codex | NIDAVELIR_OPENAI_API_KEY",
-            capabilities=["headless", "workspace-write", "git-commit"],
+            credential_env="NIDAVELIR_OPENAI_API_KEY",
+            capabilities=["headless", "workspace-write", "git-commit", "persistent-login"],
         ),
         HarnessRead(
             id="cursor",
             display_name="Cursor Agent CLI",
             configured=harness_configured(settings, "cursor"),
-            credential_env="nidavelir auth login cursor | NIDAVELIR_CURSOR_API_KEY",
-            capabilities=["headless", "workspace-write", "git-commit"],
+            credential_env="NIDAVELIR_CURSOR_API_KEY",
+            capabilities=["headless", "workspace-write", "git-commit", "persistent-login"],
         ),
     ]
 
