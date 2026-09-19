@@ -289,6 +289,7 @@ function TaskDetail() {
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
   const [unvalidatedAcknowledged, setUnvalidatedAcknowledged] = useState(false);
+  const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!taskId) return;
@@ -302,16 +303,19 @@ function TaskDetail() {
           api.getReviews(taskId),
         ]);
         const latest = nextAttempts[0];
-        const [nextLogs, nextDiff, nextChecks] = latest
+        const evidenceAttempt =
+          nextAttempts.find((attempt) => attempt.id === selectedAttemptId) ?? latest;
+        const [nextLogs, nextDiff, nextChecks] = evidenceAttempt
           ? await Promise.all([
-              api.getAttemptLogs(latest.id),
-              api.getAttemptDiff(latest.id),
-              api.getAttemptChecks(latest.id),
+              api.getAttemptLogs(evidenceAttempt.id),
+              api.getAttemptDiff(evidenceAttempt.id),
+              api.getAttemptChecks(evidenceAttempt.id),
             ])
           : [null, null, [] as ValidationCheck[]];
         if (!active) return;
         setTask(nextTask);
         setAttempts(nextAttempts);
+        setSelectedAttemptId(evidenceAttempt?.id ?? null);
         setHarnesses(nextHarnesses);
         setReviews(nextReviews);
         setLogs(nextLogs);
@@ -327,9 +331,14 @@ function TaskDetail() {
     void load();
     const timer = window.setInterval(() => void load(), 2000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [taskId]);
+  }, [taskId, selectedAttemptId]);
 
   const latest = attempts[0];
+  const evidenceAttempt =
+    attempts.find((attempt) => attempt.id === selectedAttemptId) ?? latest;
+  const evidenceIsLatest = Boolean(
+    evidenceAttempt && latest && evidenceAttempt.id === latest.id,
+  );
   const selected = harnesses.find((harness) => harness.id === selectedHarness);
   const canStart = Boolean(task && ["BACKLOG", "QUEUED", "NEEDS_CHANGES"].includes(task.state));
   const canReview = task?.state === "VALIDATING";
@@ -379,7 +388,26 @@ function TaskDetail() {
         <AsyncState kind="error" title={`${selected.display_name} is not configured`} detail={`Set ${selected.credential_env} on the server before starting this harness.`} />
       )}
 
-      <ReviewContext task={task} attempt={latest} checks={checks} />
+      {attempts.length > 0 && (
+        <div className="attempt-evidence-picker section-block">
+          <label>
+            Evidence attempt
+            <select
+              value={evidenceAttempt?.id ?? ""}
+              onChange={(event) => setSelectedAttemptId(event.target.value)}
+            >
+              {attempts.map((attempt) => (
+                <option value={attempt.id} key={attempt.id}>
+                  attempt {attempt.number} · {attempt.status} · {attempt.harness}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span>{evidenceIsLatest ? "Current review target" : "Historical evidence · read only"}</span>
+        </div>
+      )}
+
+      <ReviewContext task={task} attempt={evidenceAttempt} checks={checks} />
 
       <div className="detail-grid">
         <article className="detail-panel">
@@ -392,15 +420,15 @@ function TaskDetail() {
         </article>
 
         <article className="detail-panel">
-          <h2>Latest attempt</h2>
-          {!latest ? <span className="muted">No attempt yet.</span> : (
+          <h2>{evidenceIsLatest ? "Latest attempt" : "Historical attempt"}</h2>
+          {!evidenceAttempt ? <span className="muted">No attempt yet.</span> : (
             <dl className="kv-list">
-              <div><dt>Status</dt><dd><StateBadge state={latest.status} /></dd></div>
-              <div><dt>Harness</dt><dd>{latest.harness_version ?? latest.harness}</dd></div>
-              <div><dt>Branch</dt><dd>{latest.branch_name}</dd></div>
-              <div><dt>Commit</dt><dd>{latest.commit_sha ?? "—"}</dd></div>
-              <div><dt>Started</dt><dd>{formatTime(latest.started_at)}</dd></div>
-              <div><dt>Exit</dt><dd>{latest.exit_code ?? "—"}</dd></div>
+              <div><dt>Status</dt><dd><StateBadge state={evidenceAttempt.status} /></dd></div>
+              <div><dt>Harness</dt><dd>{evidenceAttempt.harness_version ?? evidenceAttempt.harness}</dd></div>
+              <div><dt>Branch</dt><dd>{evidenceAttempt.branch_name}</dd></div>
+              <div><dt>Commit</dt><dd>{evidenceAttempt.commit_sha ?? "—"}</dd></div>
+              <div><dt>Started</dt><dd>{formatTime(evidenceAttempt.started_at)}</dd></div>
+              <div><dt>Exit</dt><dd>{evidenceAttempt.exit_code ?? "—"}</dd></div>
             </dl>
           )}
         </article>
@@ -424,7 +452,10 @@ function TaskDetail() {
 
       <article className="detail-panel section-block">
         <div className="section-heading"><h2>Review</h2><span>{reviews.length} decisions</span></div>
-        {canReview && (
+        {canReview && !evidenceIsLatest && (
+          <p className="muted">Historical attempts are read-only. Select the latest attempt to review it.</p>
+        )}
+        {canReview && evidenceIsLatest && (
           <div className="task-form">
             <label>Review feedback<textarea rows={3} value={feedback} onChange={(event) => setFeedback(event.target.value)} placeholder="Required for rejection, optional for approval" /></label>
             {latestUnvalidated && (
@@ -443,7 +474,7 @@ function TaskDetail() {
             </div>
           </div>
         )}
-        {canMerge && <button className="button" disabled={actionBusy} onClick={() => void runAction(() => api.mergeTask(taskId))}>Merge reviewed commit</button>}
+        {canMerge && evidenceIsLatest && <button className="button" disabled={actionBusy} onClick={() => void runAction(() => api.mergeTask(taskId))}>Merge reviewed commit</button>}
         {task.merge_commit_sha && <p>Merge commit: <code>{task.merge_commit_sha}</code></p>}
         {reviews.length === 0 ? <span className="muted">No review decisions yet.</span> : (
           <div className="timeline">{reviews.map((review) => (
