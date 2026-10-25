@@ -36,6 +36,8 @@ class TaskRecord(Base):
         String(200), nullable=True, index=True
     )
     project_id: Mapped[str | None] = mapped_column(String(200), nullable=True, index=True)
+    source_key: Mapped[str | None] = mapped_column(String(600), nullable=True, index=True)
+    source: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     retry_context: Mapped[str] = mapped_column(Text, default="", nullable=False)
     retry_review_ids: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     merge_commit_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)

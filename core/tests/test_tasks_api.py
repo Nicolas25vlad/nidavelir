@@ -142,3 +142,39 @@ def test_cancel_task_is_a_durable_transition(client: TestClient) -> None:
     persisted = client.get(f"/tasks/{task['id']}").json()
     assert persisted["state"] == "CANCELLED"
     assert persisted["transitions"][0]["to_state"] == "CANCELLED"
+
+
+def test_task_source_metadata_is_durable_and_filterable(client: TestClient) -> None:
+    source = {
+        "type": "github_issue",
+        "ref": "Nicolas25vlad/nidavelir#132",
+        "url": "https://github.com/Nicolas25vlad/nidavelir/issues/132",
+        "metadata": {"labels": ["dogfood", "review"]},
+    }
+    created = create_task(
+        client,
+        title="Imported issue",
+        source_key="github_issue:Nicolas25vlad/nidavelir#132",
+        source=source,
+    )
+
+    assert created["source_key"] == "github_issue:Nicolas25vlad/nidavelir#132"
+    assert created["source"] == source
+
+    fetched = client.get(f"/tasks/{created['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["source"] == source
+
+    by_source = client.get(
+        "/tasks",
+        params={"source_key": "github_issue:Nicolas25vlad/nidavelir#132"},
+    )
+    assert by_source.status_code == 200
+    assert [task["id"] for task in by_source.json()] == [created["id"]]
+
+    updated = client.patch(
+        f"/tasks/{created['id']}",
+        json={"title": "Updated without rewriting source"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["source"] == source

@@ -26,6 +26,15 @@ AgentProfile = Literal[
 ]
 
 
+class TaskSource(BaseModel):
+    type: str = Field(min_length=1, max_length=80)
+    ref: str = Field(min_length=1, max_length=500)
+    url: str | None = Field(default=None, max_length=1000)
+    metadata: dict[str, str | int | float | bool | None | list[str]] = Field(
+        default_factory=dict
+    )
+
+
 class ValidationCommand(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     type: Literal["test", "lint", "build"]
@@ -44,6 +53,8 @@ class TaskCreate(BaseModel):
     supervisor_client: str | None = Field(default=None, min_length=1, max_length=80)
     supervisor_session_id: str | None = Field(default=None, min_length=1, max_length=200)
     project_id: str | None = Field(default=None, min_length=1, max_length=200)
+    source_key: str | None = Field(default=None, min_length=1, max_length=600)
+    source: TaskSource | None = None
 
 
 class TaskUpdate(BaseModel):
@@ -116,6 +127,8 @@ class TaskRead(BaseModel):
     supervisor_client: str | None
     supervisor_session_id: str | None
     project_id: str | None
+    source_key: str | None
+    source: TaskSource | None
     merge_commit_sha: str | None
     state: TaskState
     created_at: datetime

@@ -23,6 +23,7 @@ class GitHubIssue:
     title: str
     body: str
     url: str
+    labels: tuple[str, ...]
 
     @property
     def repository_full_name(self) -> str:
@@ -76,6 +77,12 @@ def fetch_github_issue(
         raise GitHubIssueError("GitHub returned an invalid issue payload")
 
     body = payload.get("body")
+    raw_labels = payload.get("labels")
+    labels = tuple(
+        label["name"]
+        for label in raw_labels
+        if isinstance(label, dict) and isinstance(label.get("name"), str)
+    ) if isinstance(raw_labels, list) else ()
     return GitHubIssue(
         owner=owner,
         repository=repository,
@@ -83,4 +90,5 @@ def fetch_github_issue(
         title=title.strip(),
         body=body if isinstance(body, str) else "",
         url=html_url,
+        labels=labels,
     )

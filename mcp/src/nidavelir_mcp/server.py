@@ -112,8 +112,9 @@ def create_task_from_github_issue(
     supervisor_client: str | None = None,
     supervisor_session_id: str | None = None,
     project_id: str | None = None,
+    allow_duplicate: bool = False,
 ) -> dict[str, Any]:
-    """Import a GitHub issue into a durable task without coupling source and worker harness."""
+    """Import a GitHub issue as a durable task with immutable source metadata."""
     settings = get_settings()
     token = settings.github_token.get_secret_value() if settings.github_token is not None else None
     try:
@@ -125,17 +126,31 @@ def create_task_from_github_issue(
     except GitHubIssueError as error:
         return _github_error("create_task_from_github_issue", error)
 
-    description_parts = [f"Source GitHub issue: {source.url}"]
-    if source.body.strip():
-        description_parts.extend(["", source.body.strip()])
-    description = "\n".join(description_parts)
+    source_ref = f"{source.repository_full_name}#{source.number}"
+    source_key = f"github_issue:{source_ref}"
+    client = get_core_client()
+    if not allow_duplicate:
+        existing = client.list_tasks(source_key=source_key)
+        if existing:
+            return {
+                "ok": False,
+                "error": {
+                    "operation": "create_task_from_github_issue",
+                    "status_code": 409,
+                    "detail": {
+                        "message": "GitHub issue is already imported",
+                        "source_key": source_key,
+                        "task_id": existing[0]["id"],
+                    },
+                },
+            }
 
     return _call(
         "create_task_from_github_issue",
-        lambda: get_core_client().create_task(
+        lambda: client.create_task(
             title=source.title,
             repository=source.repository_full_name,
-            description=description,
+            description=source.body.strip(),
             base_branch=base_branch,
             profile=profile,
             acceptance_criteria=acceptance_criteria,
@@ -143,6 +158,13 @@ def create_task_from_github_issue(
             supervisor_client=supervisor_client,
             supervisor_session_id=supervisor_session_id,
             project_id=project_id,
+            source_key=source_key,
+            source={
+                "type": "github_issue",
+                "ref": source_ref,
+                "url": source.url,
+                "metadata": {"labels": list(source.labels)},
+            },
         ),
     )
 
