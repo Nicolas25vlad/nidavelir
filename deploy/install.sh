@@ -150,4 +150,6 @@ printf '3. For remote MCP, set its bind/resource/issuer values to your HTTPS dep
 printf '4. Ensure your operator account can access Docker (Docker group or rootless Docker).\n'
 printf '5. Check config: nidavelir doctor\n'
 printf '6. Start/update: nidavelir update %s\n' "$VERSION"
+printf '7. Authenticate a worker harness: nidavelir auth login codex  # or cursor\n'
+printf '8. Verify harness auth: nidavelir auth status\n'
 printf '\nWeb: http://127.0.0.1:8080 by default (operator token required)\nMCP: http://127.0.0.1:8001/mcp by default (Bearer auth required)\nCore: internal Docker network only; API bearer auth enabled\nDocker: resources are namespaced per Nidavelir installation\n'

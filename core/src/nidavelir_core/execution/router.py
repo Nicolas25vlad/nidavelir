@@ -9,6 +9,7 @@ from nidavelir_core.settings import get_settings
 from nidavelir_core.tasks.domain import InvalidTaskTransition, TaskState
 from nidavelir_core.tasks.repository import TaskNotFound, TaskRepository
 
+from .harness_auth import harness_configured
 from .models import AttemptStatus
 from .queue import enqueue_attempt
 from .repository import AttemptNotFound, AttemptRepository
@@ -45,16 +46,16 @@ def list_harnesses() -> list[HarnessRead]:
         HarnessRead(
             id="codex",
             display_name="OpenAI Codex CLI",
-            configured=settings.openai_api_key is not None,
+            configured=harness_configured(settings, "codex"),
             credential_env="NIDAVELIR_OPENAI_API_KEY",
-            capabilities=["headless", "workspace-write", "git-commit"],
+            capabilities=["headless", "workspace-write", "git-commit", "persistent-login"],
         ),
         HarnessRead(
             id="cursor",
             display_name="Cursor Agent CLI",
-            configured=settings.cursor_api_key is not None,
+            configured=harness_configured(settings, "cursor"),
             credential_env="NIDAVELIR_CURSOR_API_KEY",
-            capabilities=["headless", "workspace-write", "git-commit"],
+            capabilities=["headless", "workspace-write", "git-commit", "persistent-login"],
         ),
     ]
 
